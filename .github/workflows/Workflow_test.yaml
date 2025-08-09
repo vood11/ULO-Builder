@@ -30,60 +30,38 @@ jobs:
     name: ULO Autobuilder
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false # Melanjutkan build lain meskipun ada satu yang gagal
       matrix:
+        # 1. Daftar semua rootfs yang valid.
+        #    Ini akan dikombinasikan dengan setiap entri di 'include'.
+        rootfs:
+          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+
+        # 2. Daftar semua kombinasi 'device' dan 'kernel' yang valid.
+        #    Setiap pasangan di sini akan memicu build untuk SETIAP 'rootfs' di atas.
         include:
-          # Device: s905x (Kernel: 6.1.66-DBAI, 4.9.337)
+          # Device: s905x
           - device: s905x
             kernel: '6.1.66-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x
-            kernel: '6.1.66-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
           - device: s905x
             kernel: '4.9.337'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x
-            kernel: '4.9.337'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-          # Device: s905x2 (Kernel: 6.1.66-DBAI, 5.4.279, 4.9.337)
+          # Device: s905x2
           - device: s905x2
             kernel: '6.1.66-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x2
-            kernel: '6.1.66-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
           - device: s905x2
             kernel: '5.4.279'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x2
-            kernel: '5.4.279'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
           - device: s905x2
             kernel: '4.9.337'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x2
-            kernel: '4.9.337'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-          # Device: h618-orangepi-zero3 (Kernel: 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI)
+          # Device: h618-orangepi-zero3
           - device: h618-orangepi-zero3
             kernel: '6.1.104-AW64-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: h618-orangepi-zero3
-            kernel: '6.1.104-AW64-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
           - device: h618-orangepi-zero3
             kernel: '6.1.31-AW64-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: h618-orangepi-zero3
-            kernel: '6.1.31-AW64-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-          # Device: rk3588s-orangepi-5 (Kernel: 5.10.160-rk35v-dbai)
+          # Device: rk3588s-orangepi-5
           - device: rk3588s-orangepi-5
             kernel: '5.10.160-rk35v-dbai'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: rk3588s-orangepi-5
-            kernel: '5.10.160-rk35v-dbai'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -137,6 +115,7 @@ jobs:
 
   upload_release:
     needs: build_ipk
+    if: success() # Hanya berjalan jika semua build berhasil
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -180,7 +159,7 @@ jobs:
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini di-Build menggunakan Workflow Github
+            Firmware ini dibuild menggunakan Github Actions
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
             - Informasi Firmware: ${{ inputs.fwinfo }}
