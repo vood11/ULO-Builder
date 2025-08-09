@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       kernel:
-        description: 'Kernel Version (ex. 6.6.6, 6.1.31-localversion)'
+        description: 'Kernel Version (ex. 6.6.6, 6.1.31-localversion, or "all" to build all compatible kernels)'
         required: true
-        default: '6.1.66-DBAI'
+        default: 'all'
         type: string
       rootfs:
         description: 'ROOTFS File (ex. ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)'
@@ -65,12 +65,45 @@ jobs:
           mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
           patch -p1 < ./ULO_Workflow.patch
 
+      - name: Find Compatible Kernels
+        id: find_kernels
+        run: |
+          # Define SOC based on device
+          if [[ "${{ matrix.device }}" == *"s905"* ]]; then
+            soc="amlogic"
+          elif [[ "${{ matrix.device }}" == *"h5-"* || "${{ matrix.device }}" == *"h6-"* || "${{ matrix.device }}" == *"h616-"* || "${{ matrix.device }}" == *"h618-"* ]]; then
+            soc="allwinner"
+          elif [[ "${{ matrix.device }}" == *"rk"* ]]; then
+            soc="rockchip"
+          else
+            soc="unknown"
+          fi
+          # Find kernels matching SOC
+          kernels=$(ls core/kernel/ | grep dtb-${soc} | cut -d- -f3- | cut -d. -f1 | sort | uniq)
+          if [ -z "$kernels" ]; then
+            echo "No compatible kernels found for ${{ matrix.device }} (SOC: $soc)"
+            exit 1
+          fi
+          echo "Compatible kernels for ${{ matrix.device }}: $kernels"
+          echo "kernels=$kernels" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
       - name: Building OpenWrt
         run: |
           echo "Checking ULO repository availability..."
           curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
-          (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+          # If kernel input is 'all', build for all compatible kernels; otherwise, use specified kernel
+          if [ "${{ inputs.kernel }}" = "all" ]; then
+            for kernel in ${{ steps.find_kernels.outputs.kernels }}; do
+              echo "Building for device ${{ matrix.device }} with kernel $kernel..."
+              sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k $kernel -s ${{ inputs.rootfs_size }} || \
+              (echo "Retrying download..." && sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+            done
+          else
+            echo "Building for device ${{ matrix.device }} with kernel ${{ inputs.kernel }}..."
+            sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
+            (echo "Retrying download..." && sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+          fi
           echo "Build completed or failed. Checking output directory..."
           ls -la ./out/
 
@@ -116,16 +149,17 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: combined_artifact/*
-          tag: openwrt-ulo-release-${{ github.run_id }}
+          tag: ULO-RELEASE_${{ env.RELEASE_DATE }}
           file_glob: true
           overwrite: true
           body: |
-            ## OpenWrt Release for Multiple Devices
+            ## OpenWrt ULO Release (${{ env.RELEASE_DATE }})
             ULO-Builder Release from Github Workflow
             ### OpenWrt Image Information
             - Kernel version: ${{ inputs.kernel }}
             - ROOTFS File: ${{ inputs.rootfs }}
             - ROOTFS Size: ${{ inputs.rootfs_size }}
             - Firmware Information: ${{ inputs.fwinfo }}
-            - Devices included:
-              ${{ join(matrix.device, ', ') }}
+            - Devices included: s905x, s905x2
+        env:
+          RELEASE_DATE: ${{ format('{0:yyyyMMdd}', github.event.repository.updated_at) }}
