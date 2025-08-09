@@ -45,22 +45,52 @@ jobs:
         device:
           - name: s905x
             kernels:
+																	
+						 
               - '6.1.66-DBAI'
+																			
+						 
               - '4.9.337'
+																	
+						 
+							 
+																			
           - name: s905x2
             kernels:
+																	
+						  
               - '6.1.66-DBAI'
+																			
+						  
               - '5.4.279'
+																	
+						  
+							 
+																			
+						  
               - '4.9.337'
+																	
+						  
+							 
+																			
           - name: h618-orangepi-zero3
             kernels:
+																	
+									   
               - '6.1.104-AW64-DBAI'
+																			
+									   
               - '6.1.31-AW64-DBAI'
+																	
+									   
+									  
+																			
           - name: rk3588s-orangepi-5
             kernels:
               - '5.10.160-rk35v-dbai'
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+										 
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
@@ -95,7 +125,7 @@ jobs:
         run: |
           echo "Memeriksa ketersediaan repositori ULO..."
           curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          sudo ./ulo -y -m ${{ matrix.device.name }} -r ${{ matrix.rootfs }} -k ${{ matrix.kernel }} -s ${{ inputs.rootfs_size }} || \
+          sudo ./ulo -y -m ${{ matrix.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.kernel }} -s ${{ inputs.rootfs_size }} || \
           (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
           echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
           ls -la ./out/
@@ -106,15 +136,15 @@ jobs:
       - name: Membuat Artefak Paket
         if: success() || failure()
         run: |
-          mkdir -p ./artifact/${{ matrix.device.name }}/${{ matrix.kernel }}-${{ matrix.rootfs }}
-          cp -rf ./out/${{ matrix.device.name }}/* ./artifact/${{ matrix.device.name }}/${{ matrix.kernel }}-${{ matrix.rootfs }}/ || true
+          mkdir -p ./artifact/${{ matrix.device }}/${{ matrix.kernel }}-${{ matrix.rootfs }}
+          cp -rf ./out/${{ matrix.device }}/* ./artifact/${{ matrix.device }}/${{ matrix.kernel }}-${{ matrix.rootfs }}/ || true
 
       - name: Mengirim Paket
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt_package_${{ matrix.device.name }}_${{ matrix.kernel }}_${{ matrix.rootfs }}
-          path: ./artifact/${{ matrix.device.name }}/${{ matrix.kernel }}-${{ matrix.rootfs }}/*
+          name: openwrt_package_${{ matrix.device }}_${{ matrix.kernel }}_${{ matrix.rootfs }}
+          path: ./artifact/${{ matrix.device }}/${{ matrix.kernel }}-${{ matrix.rootfs }}/*
 
   upload_release:
     needs: build_ipk
