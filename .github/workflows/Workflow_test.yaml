@@ -34,7 +34,7 @@ jobs:
       matrix:
         device:
           - s905x
-          - h618-orangepi-zero3  # Batasi untuk testing
+          - s905x2  # Batasi untuk testing
     steps:
       - name: Cleanup and Installing Prerequisites
         env:
