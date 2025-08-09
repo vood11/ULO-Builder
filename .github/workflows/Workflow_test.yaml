@@ -38,13 +38,8 @@ jobs:
     strategy:
       matrix:
         device:
-          # Amlogic
           - s905x
           - s905x2
-          # Allwinner
-          - h618-orangepi-zero3
-          # Rockchip
-          - rk3588s-orangepi-5
     steps:
       - name: Cleanup and Installing Prerequisites
         env:
@@ -82,18 +77,16 @@ jobs:
           # Get available kernels from releases
           kernels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ env.REPO_URL }}/releases?per_page=100 | \
-            jq -r '.[] | .assets[] | select(.name | test("dtb-(amlogic|allwinner|rockchip)-.*.tar.gz")) | .name' | \
+            jq -r '.[] | .assets[] | select(.name | test("dtb-amlogic-.*.tar.gz")) | .name' | \
             cut -d- -f3- | cut -d. -f1 | sort | uniq)
           echo "Available kernels: $kernels"
           for kernel in $kernels; do
-            for soc in amlogic allwinner rockchip; do
-              aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
-                "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/dtb-${soc}-${kernel}.tar.gz" || true
-              aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
-                "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/boot-${soc}-${kernel}.tar.gz" || true
-              aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
-                "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/modules-${soc}-${kernel}.tar.gz" || true
-            done
+            aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
+              "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/dtb-amlogic-${kernel}.tar.gz" || true
+            aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
+              "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/boot-amlogic-${kernel}.tar.gz" || true
+            aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
+              "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/modules-amlogic-${kernel}.tar.gz" || true
           done
           # Download device boot files
           for device in ${{ join(matrix.device, ' ') }}; do
@@ -114,20 +107,9 @@ jobs:
       - name: Find Compatible Kernels
         id: find_kernels
         run: |
-          # Define SOC based on device
-          if [[ "${{ matrix.device }}" == *"s905"* ]]; then
-            soc="amlogic"
-          elif [[ "${{ matrix.device }}" == *"a64-"* || "${{ matrix.device }}" == *"h313-"* || "${{ matrix.device }}" == *"h5-"* || "${{ matrix.device }}" == *"h6-"* || "${{ matrix.device }}" == *"h616-"* || "${{ matrix.device }}" == *"h618-"* ]]; then
-            soc="allwinner"
-          elif [[ "${{ matrix.device }}" == *"rk"* ]]; then
-            soc="rockchip"
-          else
-            soc="unknown"
-          fi
-          # Find kernels matching SOC
-          kernels=$(ls core/kernel/ | grep dtb-${soc} | cut -d- -f3- | cut -d. -f1 | sort | uniq || echo "none")
+          kernels=$(ls core/kernel/ | grep dtb-amlogic | cut -d- -f3- | cut -d. -f1 | sort | uniq || echo "none")
           if [ "$kernels" = "none" ]; then
-            echo "No compatible kernels found for ${{ matrix.device }} (SOC: $soc)"
+            echo "No compatible kernels found for ${{ matrix.device }}"
             echo "kernels=none" >> $GITHUB_OUTPUT
           else
             echo "Compatible kernels for ${{ matrix.device }}: $kernels"
@@ -189,7 +171,7 @@ jobs:
 
       - name: Set Release Date
         id: set_date
-        run: echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +%B-%d-%Y)" >> $GITHUB_OUTPUT
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
