@@ -4,30 +4,25 @@ on:
   workflow_dispatch:
     inputs:
       kernel:
-        description: 'Kernel Version (ex. 6.1.66-DBAI, or "all" to build all compatible kernels)'
+        description: 'Versi Kernel (contoh: 6.6.6, 6.1.31-localversion)'
         required: true
-        default: 'all'
+        default: '6.1.66-DBAI'
         type: string
       rootfs:
-        description: 'ROOTFS File (ex. ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)'
+        description: 'File ROOTFS (contoh: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)'
         required: true
         default: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
         type: string
       rootfs_size:
-        description: 'ROOTFS Size, min 640 (756, 1024, 2048, etc)'
+        description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
         default: '1024'
         type: string
       fwinfo:
-        description: 'Firmware Information'
+        description: 'Informasi Firmware'
         required: true
-        default: 'release note'
+        default: 'catatan rilis'
         type: string
-
-env:
-  TZ: Asia/Jakarta
-  REPO_URL: armarchindo/ULO-repository
-  ROOTFS_REPO: armarchindo/rootfs-openwrt
 
 jobs:
   build_ipk:
@@ -40,9 +35,9 @@ jobs:
         device:
           - s905x
           - s905x2
-          - s905x3
+          # Tambahkan perangkat lain setelah testing berhasil
     steps:
-      - name: Cleanup and Installing Prerequisites
+      - name: Pembersihan dan Instalasi Prasyarat
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -50,15 +45,13 @@ jobs:
           sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2
           sudo -E apt-get -y autoremove --purge
           sudo -E apt-get clean
-          sudo timedatectl set-timezone "${TZ}"
-          echo "status=success" >> $GITHUB_OUTPUT
 
-      - name: Checkout Repository
+      - name: Checkout Repositori
         uses: actions/checkout@v4
         with:
           ref: main
 
-      - name: Cache ULO repository
+      - name: Cache repositori ULO
         uses: actions/cache@v4
         with:
           path: |
@@ -70,89 +63,24 @@ jobs:
       - name: Patching ULO
         run: |
           mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
-          patch -p1 < ./ULO_Workflow.patch || echo "Patching failed, continuing..."
+          patch -p1 < ./ULO_Workflow.patch
 
-      - name: Download Kernel and Firmware
+      - name: Membangun OpenWrt
         run: |
-          mkdir -p core/kernel core/root/lib device
-          # Get available kernels from releases
-          kernels=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ env.REPO_URL }}/releases?per_page=100 | \
-            jq -r '.[] | .assets[] | select(.name | test("dtb-amlogic-.*.tar.gz")) | .name' | \
-            cut -d- -f3- | cut -d. -f1 | sort | uniq)
-          echo "Available kernels: $kernels"
-          for kernel in $kernels; do
-            aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
-              "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/dtb-amlogic-${kernel}.tar.gz" || true
-            aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
-              "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/boot-amlogic-${kernel}.tar.gz" || true
-            aria2c --max-tries=3 --retry-wait=5 --dir=core/kernel \
-              "https://github.com/${{ env.REPO_URL }}/releases/download/kernels/modules-amlogic-${kernel}.tar.gz" || true
-          done
-          # Download device boot files
-          for device in ${{ join(matrix.device, ' ') }}; do
-            aria2c --max-tries=3 --retry-wait=5 --dir=device/${device} \
-              "https://github.com/${{ env.REPO_URL }}/releases/download/firmware/boot-${device}.tar.gz" || true
-          done
-          ls -la core/kernel/
-          ls -la device/
+          echo "Memeriksa ketersediaan repositori ULO..."
+          curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
+          sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
+          (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+          echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
+          ls -la ./out/
 
-      - name: Download ROOTFS
-        run: |
-          mkdir -p rootfs
-          aria2c --max-tries=3 --retry-wait=5 --dir=rootfs \
-            "https://github.com/${{ env.ROOTFS_REPO }}/releases/download/rootfs_insomwrt/${{ inputs.rootfs }}" || \
-            echo "Failed to download ROOTFS ${{ inputs.rootfs }}. Continuing..."
-          ls -la rootfs/
-
-      - name: Find Compatible Kernels
-        id: find_kernels
-        run: |
-          kernels=$(ls core/kernel/ | grep dtb-amlogic | cut -d- -f3- | cut -d. -f1 | sort | uniq || echo "none")
-          if [ "$kernels" = "none" ]; then
-            echo "No compatible kernels found for ${{ matrix.device }}"
-            echo "kernels=none" >> $GITHUB_OUTPUT
-          else
-            echo "Compatible kernels for ${{ matrix.device }}: $kernels"
-            echo "kernels=$kernels" >> $GITHUB_OUTPUT
-          fi
-        continue-on-error: true
-
-      - name: Building OpenWrt
-        run: |
-          # Validate device directory
-          if [ ! -f "device/${{ matrix.device }}/boot-*.tar.gz" ]; then
-            echo "No boot files found for device ${{ matrix.device }}. Skipping..."
-            exit 0
-          fi
-          # If kernel input is 'all', build for all compatible kernels; otherwise, use specified kernel
-          if [ "${{ inputs.kernel }}" = "all" ]; then
-            for kernel in ${{ steps.find_kernels.outputs.kernels }}; do
-              if [ "$kernel" != "none" ]; then
-                echo "Building for device ${{ matrix.device }} with kernel $kernel..."
-                sudo ./ulo -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k $kernel -s ${{ inputs.rootfs_size }} || \
-                (echo "Kernel $kernel not compatible with ${{ matrix.device }} or failed. Skipping..." && true)
-              else
-                echo "No kernels available for ${{ matrix.device }}. Skipping..."
-              fi
-            done
-          else
-            echo "Building for device ${{ matrix.device }} with kernel ${{ inputs.kernel }}..."
-            sudo ./ulo -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
-            (echo "Kernel ${{ inputs.kernel }} not compatible with ${{ matrix.device }} or failed. Skipping..." && true)
-          fi
-          echo "Build completed or failed. Checking output directory..."
-          ls -la ./out/ || echo "No output directory created."
-        continue-on-error: true
-
-      - name: Creating Package Artifact
+      - name: Membuat Artefak Paket
         if: success() || failure()
         run: |
           mkdir -p ./artifact/${{ matrix.device }}
           cp -rf ./out/${{ matrix.device }}/* ./artifact/${{ matrix.device }}/ || true
-          ls -la ./artifact/${{ matrix.device }} || echo "No artifacts for ${{ matrix.device }}."
 
-      - name: Delivering Package
+      - name: Mengirim Paket
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
@@ -165,43 +93,49 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repositori
         uses: actions/checkout@v4
         with:
           ref: main
 
-      - name: Set Release Date
-        id: set_date
-        run: echo "date=$(date +%B-%d-%Y)" >> $GITHUB_OUTPUT
-
-      - name: Download all artifacts
+      - name: Unduh semua artefak
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Combine artifacts
+      - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
-          for device in ${{ join(matrix.device, ' ') }}; do
+          for device in s905x s905x2; do
             cp -rf artifacts/openwrt_package_${device}/* combined_artifact/ || true
           done
-          ls -la combined_artifact/ || echo "No artifacts to combine."
+          ls -la combined_artifact/
 
-      - name: Upload release asset
-        uses: ncipollo/release-action@v1
+      - name: Dapatkan Tanggal Saat Ini
+        id: date
+        run: |
+          sudo apt-get install -y locales
+          sudo locale-gen id_ID.UTF-8
+          export LC_TIME=id_ID.UTF-8
+          bulan=$(date +%B)
+          tanggal=$(date +%d)
+          tahun=$(date +%Y)
+          echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+
+      - name: Unggah aset rilis
+        uses: svenstaro/upload-release-action@v2
         with:
-          tag: ULO-RELEASE_${{ steps.set_date.outputs.date }}
-          artifacts: combined_artifact/*
-          allowUpdates: true
-          removeArtifacts: false
-          replacesArtifacts: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: combined_artifact/*
+          tag: ${{ steps.date.outputs.release_tag }}
+          file_glob: true
+          overwrite: true
           body: |
-            ## OpenWrt ULO Release (${{ steps.set_date.outputs.date }})
-            ULO-Builder Release from Github Workflow
-            ### OpenWrt Image Information
-            - Kernel version: ${{ inputs.kernel }}
-            - ROOTFS File: ${{ inputs.rootfs }}
-            - ROOTFS Size: ${{ inputs.rootfs_size }}
-            - Firmware Information: ${{ inputs.fwinfo }}
-            - Devices included: ${{ join(matrix.device, ', ') }}
+            ## Rilis OpenWrt untuk Berbagai Perangkat
+            Rilis ULO-Builder dari Workflow Github
+            ### Informasi Gambar OpenWrt
+            - Versi kernel: ${{ inputs.kernel }}
+            - File ROOTFS: ${{ inputs.rootfs }}
+            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
+            - Informasi Firmware: ${{ inputs.fwinfo }}
+            - Perangkat yang disertakan: s905x, s905x2
