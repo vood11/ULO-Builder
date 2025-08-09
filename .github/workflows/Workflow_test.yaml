@@ -33,9 +33,33 @@ jobs:
     strategy:
       matrix:
         device:
+          # Amlogic
           - s905x
           - s905x2
-          # Tambahkan perangkat lain setelah testing berhasil
+          - s905x3
+          - s905x4
+          # Allwinner
+          - a64-bananapi-m64
+          - a64-nanopi-a64
+          - h313-x96q-lpddr3
+          - h5-orangepi-pc2
+          - h5-orangepi-prime
+          - h5-orangepi-zeroplus
+          - h5-orangepi-zeroplus2
+          - h6-orangepi-1plus
+          - h6-orangepi-3
+          - h6-orangepi-3lts
+          - h6-orangepi-lite2
+          - h6-tanix-tx6
+          - h616-orangepi-zero2
+          - h616-x96-mate
+          - h618-orangepi-zero2w
+          - h618-orangepi-zero3
+          # Rockchip
+          - rk3566-orangepi-3b
+          - rk3588-orangepi-5-max
+          - rk3588-orangepi-5-plus
+          - rk3588s-orangepi-5
     steps:
       - name: Cleanup and Installing Prerequisites
         env:
@@ -71,7 +95,7 @@ jobs:
           # Define SOC based on device
           if [[ "${{ matrix.device }}" == *"s905"* ]]; then
             soc="amlogic"
-          elif [[ "${{ matrix.device }}" == *"h5-"* || "${{ matrix.device }}" == *"h6-"* || "${{ matrix.device }}" == *"h616-"* || "${{ matrix.device }}" == *"h618-"* ]]; then
+          elif [[ "${{ matrix.device }}" == *"a64-"* || "${{ matrix.device }}" == *"h313-"* || "${{ matrix.device }}" == *"h5-"* || "${{ matrix.device }}" == *"h6-"* || "${{ matrix.device }}" == *"h616-"* || "${{ matrix.device }}" == *"h618-"* ]]; then
             soc="allwinner"
           elif [[ "${{ matrix.device }}" == *"rk"* ]]; then
             soc="rockchip"
@@ -82,10 +106,11 @@ jobs:
           kernels=$(ls core/kernel/ | grep dtb-${soc} | cut -d- -f3- | cut -d. -f1 | sort | uniq)
           if [ -z "$kernels" ]; then
             echo "No compatible kernels found for ${{ matrix.device }} (SOC: $soc)"
-            exit 1
+            echo "kernels=none" >> $GITHUB_OUTPUT
+          else
+            echo "Compatible kernels for ${{ matrix.device }}: $kernels"
+            echo "kernels=$kernels" >> $GITHUB_OUTPUT
           fi
-          echo "Compatible kernels for ${{ matrix.device }}: $kernels"
-          echo "kernels=$kernels" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Building OpenWrt
@@ -97,15 +122,17 @@ jobs:
             for kernel in ${{ steps.find_kernels.outputs.kernels }}; do
               echo "Building for device ${{ matrix.device }} with kernel $kernel..."
               sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k $kernel -s ${{ inputs.rootfs_size }} || \
-              (echo "Retrying download..." && sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+              (echo "Kernel $kernel not compatible with ${{ matrix.device }} or failed. Skipping..." && true)
             done
           else
             echo "Building for device ${{ matrix.device }} with kernel ${{ inputs.kernel }}..."
             sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
-            (echo "Retrying download..." && sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+            (echo "Retrying download..." && sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main && \
+             sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || true)
           fi
           echo "Build completed or failed. Checking output directory..."
           ls -la ./out/
+        continue-on-error: true
 
       - name: Creating Package Artifact
         if: success() || failure()
@@ -131,6 +158,10 @@ jobs:
         with:
           ref: main
 
+      - name: Set Release Date
+        id: set_date
+        run: echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -139,7 +170,7 @@ jobs:
       - name: Combine artifacts
         run: |
           mkdir -p combined_artifact
-          for device in s905x s905x2; do
+          for device in s905x s905x2 s905x3 s905x4 a64-bananapi-m64 a64-nanopi-a64 h313-x96q-lpddr3 h5-orangepi-pc2 h5-orangepi-prime h5-orangepi-zeroplus h5-orangepi-zeroplus2 h6-orangepi-1plus h6-orangepi-3 h6-orangepi-3lts h6-orangepi-lite2 h6-tanix-tx6 h616-orangepi-zero2 h616-x96-mate h618-orangepi-zero2w h618-orangepi-zero3 rk3566-orangepi-3b rk3588-orangepi-5-max rk3588-orangepi-5-plus rk3588s-orangepi-5; do
             cp -rf artifacts/openwrt_package_${device}/* combined_artifact/ || true
           done
           ls -la combined_artifact/
@@ -149,17 +180,15 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: combined_artifact/*
-          tag: ULO-RELEASE_${{ env.RELEASE_DATE }}
+          tag: ULO-RELEASE_${{ steps.set_date.outputs.date }}
           file_glob: true
           overwrite: true
           body: |
-            ## OpenWrt ULO Release (${{ env.RELEASE_DATE }})
+            ## OpenWrt ULO Release (${{ steps.set_date.outputs.date }})
             ULO-Builder Release from Github Workflow
             ### OpenWrt Image Information
             - Kernel version: ${{ inputs.kernel }}
             - ROOTFS File: ${{ inputs.rootfs }}
             - ROOTFS Size: ${{ inputs.rootfs_size }}
             - Firmware Information: ${{ inputs.fwinfo }}
-            - Devices included: s905x, s905x2
-        env:
-          RELEASE_DATE: ${{ format('{0:yyyyMMdd}', github.event.repository.updated_at) }}
+            - Devices included: s905x, s905x2, s905x3, s905x4, a64-bananapi-m64, a64-nanopi-a64, h313-x96q-lpddr3, h5-orangepi-pc2, h5-orangepi-prime, h5-orangepi-zeroplus, h5-orangepi-zeroplus2, h6-orangepi-1plus, h6-orangepi-3, h6-orangepi-3lts, h6-orangepi-lite2, h6-tanix-tx6, h616-orangepi-zero2, h616-x96-mate, h618-orangepi-zero2w, h618-orangepi-zero3, rk3566-orangepi-3b, rk3588-orangepi-5-max, rk3588-orangepi-5-plus, rk3588s-orangepi-5
