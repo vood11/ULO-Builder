@@ -197,4 +197,4 @@ jobs:
             - File ROOTFS: ${{ matrix.rootfs }}
             - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
             - Informasi Firmware: ${{ inputs.fwinfo }}
-            - Perangkat yang disertakan: s905x (kernel: 6.1.66-DBAI, 4.9.337), s905x2 (kernel: 6.1.66-DBAI, 5.4.279, 4.9.337), h618-orangepi-zero3 (kernel: 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI), rk3588s-orangepi-5 (kernel: 5.10.160-rk35v-dbai)
+            - Perangkat yang disertakan: s905x, s905x2, h618-orangepi-zero3, rk3588s-orangepi-5
