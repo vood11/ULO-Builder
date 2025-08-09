@@ -34,7 +34,8 @@ jobs:
       matrix:
         device:
           - s905x
-          - s905x2  # Batasi untuk testing
+          - s905x2
+          # Tambahkan perangkat lain setelah testing berhasil
     steps:
       - name: Cleanup and Installing Prerequisites
         env:
@@ -86,23 +87,45 @@ jobs:
           name: openwrt_package_${{ matrix.device }}
           path: ./artifact/${{ matrix.device }}/*
 
+  upload_release:
+    needs: build_ipk
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Combine artifacts
+        run: |
+          mkdir -p combined_artifact
+          for device in s905x s905x2; do
+            cp -rf artifacts/openwrt_package_${device}/* combined_artifact/ || true
+          done
+          ls -la combined_artifact/
+
       - name: Upload release asset
-        if: success()
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ./artifact/${{ matrix.device }}/*
-          tag: ${{ matrix.device }}
+          file: combined_artifact/*
+          tag: openwrt-ulo-release-${{ github.run_id }}
           file_glob: true
           overwrite: true
           body: |
-            ## OpenWrt Release for ${{ matrix.device }} devices
+            ## OpenWrt Release for Multiple Devices
             ULO-Builder Release from Github Workflow
             ### OpenWrt Image Information
-            - Firmware Details:
-              - Device type: ${{ matrix.device }}
-              - Kernel version: ${{ inputs.kernel }}
-              - ROOTFS File: ${{ inputs.rootfs }}
-              - ROOTFS Size: ${{ inputs.rootfs_size }}
-            - Firmware Information:
-              - ${{ inputs.fwinfo }}
+            - Kernel version: ${{ inputs.kernel }}
+            - ROOTFS File: ${{ inputs.rootfs }}
+            - ROOTFS Size: ${{ inputs.rootfs_size }}
+            - Firmware Information: ${{ inputs.fwinfo }}
+            - Devices included:
+              ${{ join(matrix.device, ', ') }}
