@@ -84,10 +84,31 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      - name: Patching ULO
+      - name: Download ULO Repository
         run: |
-          mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
-          patch -p1 < ./ULO_Workflow.patch
+          if [ ! -d "core/kernel" ] || [ -z "$(ls -A core/kernel)" ]; then
+            echo "Downloading ULO repository..."
+            aria2c --max-tries=3 --retry-wait=5 --out=tmp/data.zip "https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main"
+            unzip -q tmp/data.zip -d tmp
+            cp -rf tmp/ULO-repository-main/kernel core/
+            cp -rf tmp/ULO-repository-main/rootfs rootfs/
+            cp -rf tmp/ULO-repository-main/firmware core/root/lib/
+            rm -rf tmp
+          else
+            echo "Using cached ULO repository..."
+          fi
+          ls -la core/kernel/
+          ls -la rootfs/
+
+      - name: Ensure ROOTFS File Exists
+        run: |
+          if [ ! -f "rootfs/${{ inputs.rootfs }}" ]; then
+            echo "Downloading ROOTFS ${{ inputs.rootfs }}..."
+            aria2c --max-tries=3 --retry-wait=5 --out=rootfs/${{ inputs.rootfs }} \
+              "https://github.com/armarchindo/rootfs-openwrt/releases/download/rootfs_insomwrt/${{ inputs.rootfs }}" || \
+              echo "Failed to download ROOTFS ${{ inputs.rootfs }}. Continuing..."
+          fi
+          ls -la rootfs/
 
       - name: Find Compatible Kernels
         id: find_kernels
@@ -103,8 +124,8 @@ jobs:
             soc="unknown"
           fi
           # Find kernels matching SOC
-          kernels=$(ls core/kernel/ | grep dtb-${soc} | cut -d- -f3- | cut -d. -f1 | sort | uniq)
-          if [ -z "$kernels" ]; then
+          kernels=$(ls core/kernel/ | grep dtb-${soc} | cut -d- -f3- | cut -d. -f1 | sort | uniq || echo "none")
+          if [ "$kernels" = "none" ]; then
             echo "No compatible kernels found for ${{ matrix.device }} (SOC: $soc)"
             echo "kernels=none" >> $GITHUB_OUTPUT
           else
@@ -117,21 +138,29 @@ jobs:
         run: |
           echo "Checking ULO repository availability..."
           curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
+          # Validate device directory
+          if [ ! -f "device/${{ matrix.device }}/boot-*.tar.gz" ]; then
+            echo "No boot files found for device ${{ matrix.device }}. Skipping..."
+            exit 0
+          fi
           # If kernel input is 'all', build for all compatible kernels; otherwise, use specified kernel
           if [ "${{ inputs.kernel }}" = "all" ]; then
             for kernel in ${{ steps.find_kernels.outputs.kernels }}; do
-              echo "Building for device ${{ matrix.device }} with kernel $kernel..."
-              sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k $kernel -s ${{ inputs.rootfs_size }} || \
-              (echo "Kernel $kernel not compatible with ${{ matrix.device }} or failed. Skipping..." && true)
+              if [ "$kernel" != "none" ]; then
+                echo "Building for device ${{ matrix.device }} with kernel $kernel..."
+                sudo ./ulo -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k $kernel -s ${{ inputs.rootfs_size }} || \
+                (echo "Kernel $kernel not compatible with ${{ matrix.device }} or failed. Skipping..." && true)
+              else
+                echo "No kernels available for ${{ matrix.device }}. Skipping..."
+              fi
             done
           else
             echo "Building for device ${{ matrix.device }} with kernel ${{ inputs.kernel }}..."
-            sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
-            (echo "Retrying download..." && sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main && \
-             sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || true)
+            sudo ./ulo -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
+            (echo "Kernel ${{ inputs.kernel }} not compatible with ${{ matrix.device }} or failed. Skipping..." && true)
           fi
           echo "Build completed or failed. Checking output directory..."
-          ls -la ./out/
+          ls -la ./out/ || echo "No output directory created."
         continue-on-error: true
 
       - name: Creating Package Artifact
@@ -139,6 +168,7 @@ jobs:
         run: |
           mkdir -p ./artifact/${{ matrix.device }}
           cp -rf ./out/${{ matrix.device }}/* ./artifact/${{ matrix.device }}/ || true
+          ls -la ./artifact/${{ matrix.device }} || echo "No artifacts for ${{ matrix.device }}."
 
       - name: Delivering Package
         if: success() || failure()
@@ -173,7 +203,7 @@ jobs:
           for device in s905x s905x2 s905x3 s905x4 a64-bananapi-m64 a64-nanopi-a64 h313-x96q-lpddr3 h5-orangepi-pc2 h5-orangepi-prime h5-orangepi-zeroplus h5-orangepi-zeroplus2 h6-orangepi-1plus h6-orangepi-3 h6-orangepi-3lts h6-orangepi-lite2 h6-tanix-tx6 h616-orangepi-zero2 h616-x96-mate h618-orangepi-zero2w h618-orangepi-zero3 rk3566-orangepi-3b rk3588-orangepi-5-max rk3588-orangepi-5-plus rk3588s-orangepi-5; do
             cp -rf artifacts/openwrt_package_${device}/* combined_artifact/ || true
           done
-          ls -la combined_artifact/
+          ls -la combined_artifact/ || echo "No artifacts to combine."
 
       - name: Upload release asset
         uses: svenstaro/upload-release-action@v2
