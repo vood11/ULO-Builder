@@ -28,7 +28,8 @@ jobs:
           - { device: s905x,               kernel: '6.1.66-DBAI' }
           - { device: s905x,               kernel: '4.9.337' }
           - { device: s905x2,              kernel: '6.1.66-DBAI' }
-          - { device: s905x2,              kernel: '4.9.337' }
+          - { device: s905x2,              kernel: '5.4.279' }
+		  - { device: s905x2,              kernel: '4.9.337' }
           # --- Perangkat Rockchip Lama ---
           - { device: rk3588s-orangepi-5,  kernel: '5.10.160-rk35v-dbai' }
           # --- Perangkat Allwinner Lama ---
