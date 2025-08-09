@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       kernel:
-        description: 'Versi Kernel (contoh: 6.6.6, 6.1.31-localversion)'
+        description: 'Versi Kernel (contoh: 6.1.66, 5.4.279, 4.9.337)'
         required: true
         default: '6.1.66-DBAI'
         type: choice
         options:
           - '6.1.66-DBAI'
           - '5.4.279'
+          - '4.9.337'
       rootfs:
         description: 'File ROOTFS (contoh: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)'
         required: true
@@ -44,7 +45,8 @@ jobs:
           # Tambahkan perangkat lain setelah testing berhasil
         kernel:
           - '6.1.66-DBAI'
-          - '6.6.6-A2OS'
+          - '5.4.279'
+          - '4.9.337'
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -119,7 +121,7 @@ jobs:
         run: |
           mkdir -p combined_artifact
           for device in s905x s905x2; do
-            for kernel in 6.1.66-DBAI 6.6.6-A2OS; do
+            for kernel in 6.1.66-DBAI 5.4.279 4.9.337; do
               for rootfs in ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz; do
                 cp -rf artifacts/openwrt_package_${device}_${kernel}_${rootfs}/* combined_artifact/ || true
               done
