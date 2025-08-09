@@ -39,17 +39,37 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        device:
-          - s905x
-          - s905x2
-          # Tambahkan perangkat lain setelah testing berhasil
-        kernel:
-          - '6.1.66-DBAI'
-          - '5.4.279'
-          - '4.9.337'
-        rootfs:
-          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+        include:
+          - device: s905x
+            kernel: '6.1.66-DBAI'
+            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - device: s905x
+            kernel: '6.1.66-DBAI'
+            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+          - device: s905x
+            kernel: '4.9.337'
+            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - device: s905x
+            kernel: '4.9.337'
+            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+          - device: s905x2
+            kernel: '6.1.66-DBAI'
+            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - device: s905x2
+            kernel: '6.1.66-DBAI'
+            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+          - device: s905x2
+            kernel: '5.4.279'
+            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - device: s905x2
+            kernel: '5.4.279'
+            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+          - device: s905x2
+            kernel: '4.9.337'
+            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - device: s905x2
+            kernel: '4.9.337'
+            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -156,4 +176,4 @@ jobs:
             - File ROOTFS: ${{ matrix.rootfs }}
             - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
             - Informasi Firmware: ${{ inputs.fwinfo }}
-            - Perangkat yang disertakan: s905x, s905x2
+            - Perangkat yang disertakan: s905x (kernel: 6.1.66-DBAI, 4.9.337), s905x2 (kernel: 6.1.66-DBAI, 5.4.279, 4.9.337)
