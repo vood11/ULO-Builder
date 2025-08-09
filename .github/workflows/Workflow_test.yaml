@@ -40,6 +40,7 @@ jobs:
         device:
           - s905x
           - s905x2
+          - s905x3
     steps:
       - name: Cleanup and Installing Prerequisites
         env:
