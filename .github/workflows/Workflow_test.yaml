@@ -7,12 +7,18 @@ on:
         description: 'Versi Kernel (contoh: 6.6.6, 6.1.31-localversion)'
         required: true
         default: '6.1.66-DBAI'
-        type: string
+        type: choice
+        options:
+          - '6.1.66-DBAI'
+          - '5.4.279'
       rootfs:
         description: 'File ROOTFS (contoh: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)'
         required: true
         default: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-        type: string
+        type: choice
+        options:
+          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
@@ -36,6 +42,12 @@ jobs:
           - s905x
           - s905x2
           # Tambahkan perangkat lain setelah testing berhasil
+        kernel:
+          - '6.1.66-DBAI'
+          - '6.6.6-A2OS'
+        rootfs:
+          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -69,7 +81,7 @@ jobs:
         run: |
           echo "Memeriksa ketersediaan repositori ULO..."
           curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          sudo ./ulo -y -m ${{ matrix.device }} -r ${{ inputs.rootfs }} -k ${{ inputs.kernel }} -s ${{ inputs.rootfs_size }} || \
+          sudo ./ulo -y -m ${{ matrix.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.kernel }} -s ${{ inputs.rootfs_size }} || \
           (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
           echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
           ls -la ./out/
@@ -77,15 +89,15 @@ jobs:
       - name: Membuat Artefak Paket
         if: success() || failure()
         run: |
-          mkdir -p ./artifact/${{ matrix.device }}
-          cp -rf ./out/${{ matrix.device }}/* ./artifact/${{ matrix.device }}/ || true
+          mkdir -p ./artifact/${{ matrix.device }}/${{ matrix.kernel }}-${{ matrix.rootfs }}
+          cp -rf ./out/${{ matrix.device }}/* ./artifact/${{ matrix.device }}/${{ matrix.kernel }}-${{ matrix.rootfs }}/ || true
 
       - name: Mengirim Paket
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt_package_${{ matrix.device }}
-          path: ./artifact/${{ matrix.device }}/*
+          name: openwrt_package_${{ matrix.device }}_${{ matrix.kernel }}_${{ matrix.rootfs }}
+          path: ./artifact/${{ matrix.device }}/${{ matrix.kernel }}-${{ matrix.rootfs }}/*
 
   upload_release:
     needs: build_ipk
@@ -107,7 +119,11 @@ jobs:
         run: |
           mkdir -p combined_artifact
           for device in s905x s905x2; do
-            cp -rf artifacts/openwrt_package_${device}/* combined_artifact/ || true
+            for kernel in 6.1.66-DBAI 6.6.6-A2OS; do
+              for rootfs in ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz; do
+                cp -rf artifacts/openwrt_package_${device}_${kernel}_${rootfs}/* combined_artifact/ || true
+              done
+            done
           done
           ls -la combined_artifact/
 
@@ -134,8 +150,8 @@ jobs:
             ## Rilis OpenWrt untuk Berbagai Perangkat
             Rilis ULO-Builder dari Workflow Github
             ### Informasi Gambar OpenWrt
-            - Versi kernel: ${{ inputs.kernel }}
-            - File ROOTFS: ${{ inputs.rootfs }}
+            - Versi kernel: ${{ matrix.kernel }}
+            - File ROOTFS: ${{ matrix.rootfs }}
             - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
             - Informasi Firmware: ${{ inputs.fwinfo }}
             - Perangkat yang disertakan: s905x, s905x2
