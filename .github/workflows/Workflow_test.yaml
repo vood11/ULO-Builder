@@ -1,5 +1,23 @@
 name: ULO Autobuilder v2
 
+# Definisi variabel untuk devices, kernels, dan rootfs
+env:
+  DEVICES: |
+    s905x
+    s905x2
+    h618-orangepi-zero3
+    rk3588s-orangepi-5
+  KERNELS: |
+    6.1.66-DBAI
+    5.4.279
+    4.9.337
+    6.1.104-AW64-DBAI
+    6.1.31-AW64-DBAI
+    5.10.160-rk35v-dbai
+  ROOTFS_FILES: |
+    ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
+    OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
+
 on:
   workflow_dispatch:
     inputs:
@@ -42,55 +60,43 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        include:
+        device: ${{ fromJson(env.DEVICES) }}
+        kernel: ${{ fromJson(env.KERNELS) }}
+        rootfs: ${{ fromJson(env.ROOTFS_FILES) }}
+        exclude:
+          # Filter kombinasi yang tidak valid berdasarkan aturan sebelumnya
           - device: s905x
-            kernel: '6.1.66-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+            kernel: 5.4.279
           - device: s905x
-            kernel: '6.1.66-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 6.1.104-AW64-DBAI
           - device: s905x
-            kernel: '4.9.337'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+            kernel: 6.1.31-AW64-DBAI
           - device: s905x
-            kernel: '4.9.337'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 5.10.160-rk35v-dbai
           - device: s905x2
-            kernel: '6.1.66-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+            kernel: 6.1.104-AW64-DBAI
           - device: s905x2
-            kernel: '6.1.66-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 6.1.31-AW64-DBAI
           - device: s905x2
-            kernel: '5.4.279'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x2
-            kernel: '5.4.279'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-          - device: s905x2
-            kernel: '4.9.337'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - device: s905x2
-            kernel: '4.9.337'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 5.10.160-rk35v-dbai
           - device: h618-orangepi-zero3
-            kernel: '6.1.104-AW64-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+            kernel: 6.1.66-DBAI
           - device: h618-orangepi-zero3
-            kernel: '6.1.104-AW64-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 5.4.279
           - device: h618-orangepi-zero3
-            kernel: '6.1.31-AW64-DBAI'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+            kernel: 4.9.337
           - device: h618-orangepi-zero3
-            kernel: '6.1.31-AW64-DBAI'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 5.10.160-rk35v-dbai
           - device: rk3588s-orangepi-5
-            kernel: '5.10.160-rk35v-dbai'
-            rootfs: 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+            kernel: 6.1.66-DBAI
           - device: rk3588s-orangepi-5
-            kernel: '5.10.160-rk35v-dbai'
-            rootfs: 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+            kernel: 5.4.279
+          - device: rk3588s-orangepi-5
+            kernel: 4.9.337
+          - device: rk3588s-orangepi-5
+            kernel: 6.1.104-AW64-DBAI
+          - device: rk3588s-orangepi-5
+            kernel: 6.1.31-AW64-DBAI
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -161,12 +167,8 @@ jobs:
       - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
-          for device in s905x s905x2 h618-orangepi-zero3 rk3588s-orangepi-5; do
-            for kernel in 6.1.66-DBAI 5.4.279 4.9.337 6.1.104-AW64-DBAI 6.1.31-AW64-DBAI 5.10.160-rk35v-dbai; do
-              for rootfs in ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz; do
-                cp -rf artifacts/openwrt_package_${device}_${kernel}_${rootfs}/* combined_artifact/ || true
-              done
-            done
+          for artifact in artifacts/openwrt_package_*; do
+            cp -rf "$artifact"/* combined_artifact/ || true
           done
           ls -la combined_artifact/
 
@@ -190,11 +192,19 @@ jobs:
           file_glob: true
           overwrite: true
           body: |
-            ## Rilis OpenWrt untuk Berbagai Perangkat
-            Rilis ULO-Builder dari Workflow Github
-            ### Informasi Gambar OpenWrt
-            - Versi kernel: ${{ matrix.kernel }}
-            - File ROOTFS: ${{ matrix.rootfs }}
+            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
+            Firmware ini di-Build menggunakan Workflow Github
+            ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
             - Informasi Firmware: ${{ inputs.fwinfo }}
-            - Perangkat yang disertakan: s905x, s905x2, h618-orangepi-zero3, rk3588s-orangepi-5
+            ### Kombinasi Perangkat, Kernel, dan ROOTFS:
+            ${{ join(fromJson(env.DEVICES), ', ') }}:
+            $(
+              for device in ${{ env.DEVICES }}; do
+                for kernel in ${{ env.KERNELS }}; do
+                  for rootfs in ${{ env.ROOTFS_FILES }}; do
+                    echo "- $device (Kernel: $kernel, ROOTFS: $rootfs)"
+                  done
+                done
+              done
+            )
