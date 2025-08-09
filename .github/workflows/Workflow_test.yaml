@@ -1,10 +1,4 @@
 name: ULO Autobuilder v2
-
-# Referensi Daftar untuk Kemudahan Pengeditan
-# DEVICES: s905x, s905x2, h618-orangepi-zero3, rk3588s-orangepi-5
-# KERNELS: 6.1.66-DBAI, 5.4.279, 4.9.337, 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI, 5.10.160-rk35v-dbai
-# ROOTFS_FILES: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz, OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
-
 on:
   workflow_dispatch:
     inputs:
@@ -29,20 +23,61 @@ jobs:
       fail-fast: false
       matrix:
         # SUMBU 1: Pasangan terikat antara device dan kernel.
-        # Kita beri nama sumbu ini 'config'. Setiap item adalah sebuah objek.
         config:
+          # --- Perangkat Amlogic Lama ---
           - { device: s905x,               kernel: '6.1.66-DBAI' }
           - { device: s905x,               kernel: '4.9.337' }
           - { device: s905x2,              kernel: '6.1.66-DBAI' }
-          - { device: s905x2,              kernel: '5.4.279' }
           - { device: s905x2,              kernel: '4.9.337' }
+          # --- Perangkat Rockchip Lama ---
+          - { device: rk3588s-orangepi-5,  kernel: '5.10.160-rk35v-dbai' }
+          # --- Perangkat Allwinner Lama ---
           - { device: h618-orangepi-zero3, kernel: '6.1.104-AW64-DBAI' }
           - { device: h618-orangepi-zero3, kernel: '6.1.31-AW64-DBAI' }
-          - { device: rk3588s-orangepi-5,  kernel: '5.10.160-rk35v-dbai' }
+          
+          # --- [BARU] Perangkat Allwinner (A64, H313, H5, H6, H616, H618) ---
+          - { device: a64-bananapi-m64,      kernel: '6.1.104-AW64-DBAI' }
+          - { device: a64-bananapi-m64,      kernel: '6.1.31-AW64-DBAI' }
+          - { device: a64-nanopi-a64,        kernel: '6.1.104-AW64-DBAI' }
+          - { device: a64-nanopi-a64,        kernel: '6.1.31-AW64-DBAI' }
+          - { device: h313-x96q-lpddr3,      kernel: '6.1.104-AW64-DBAI' }
+          - { device: h313-x96q-lpddr3,      kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-pc2,       kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-pc2,       kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-prime,     kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-prime,     kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus,  kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus,  kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus2, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus2, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-1plus,     kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-1plus,     kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-3,         kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-3,         kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-3lts,      kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-3lts,      kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-lite2,     kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-lite2,     kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-tanix-tx6,          kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-tanix-tx6,          kernel: '6.1.31-AW64-DBAI' }
+          - { device: h616-orangepi-zero2,   kernel: '6.1.104-AW64-DBAI' }
+          - { device: h616-orangepi-zero2,   kernel: '6.1.31-AW64-DBAI' }
+          - { device: h616-x96-mate,         kernel: '6.1.104-AW64-DBAI' }
+          - { device: h616-x96-mate,         kernel: '6.1.31-AW64-DBAI' }
+          - { device: h618-orangepi-zero2w,  kernel: '6.1.104-AW64-DBAI' }
+          - { device: h618-orangepi-zero2w,  kernel: '6.1.31-AW64-DBAI' }
+
+          # --- [BARU] Perangkat Rockchip (RK3566, RK3588) ---
+          - { device: rk3566-orangepi-3b,    kernel: '5.10.160-rk35v-dbai' }
+          - { device: rk3588-orangepi-5-max, kernel: '5.10.160-rk35v-dbai' }
+          - { device: rk3588-orangepi-5-plus,kernel: '5.10.160-rk35v-dbai' }
+
+          # --- [BARU] Perangkat Amlogic (S905X3, S905X4) ---
+          - { device: s905x3,                kernel: '6.1.66-DBAI' }
+          - { device: s905x4,                kernel: '6.1.66-DBAI' }
+          - { device: s905x4,                kernel: '5.4.279' }
 
         # SUMBU 2: Variabel independen 'rootfs'.
-        # GitHub Actions akan mengalikan setiap 'config' dengan setiap 'rootfs'.
-        # (8 item 'config' x 2 item 'rootfs' = 16 total jobs)
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -62,7 +97,6 @@ jobs:
         with:
           ref: main
 
-      # ... (langkah cache dan patch tidak perlu diubah) ...
       - name: Cache repositori ULO
         uses: actions/cache@v4
         with:
@@ -81,7 +115,6 @@ jobs:
         run: |
           echo "Memeriksa ketersediaan repositori ULO..."
           curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          # PERHATIKAN CARA MENGAKSES VARIABEL YANG BARU
           sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }} || \
           (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
           echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
@@ -90,7 +123,6 @@ jobs:
       - name: Membuat Artefak Paket
         if: success() || failure()
         run: |
-          # PERHATIKAN CARA MENGAKSES VARIABEL YANG BARU
           mkdir -p ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}
           cp -rf ./out/${{ matrix.config.device }}/* ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/ || true
 
@@ -98,7 +130,6 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          # PERHATIKAN CARA MENGAKSES VARIABEL YANG BARU
           name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
           path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
 
@@ -134,6 +165,7 @@ jobs:
           sudo apt-get install -y locales
           sudo locale-gen id_ID.UTF-8
           export LC_TIME=id_ID.UTF-8
+		      export TZ="Asia/Jakarta"
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
