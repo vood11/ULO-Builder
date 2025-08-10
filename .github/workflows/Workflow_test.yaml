@@ -298,5 +298,6 @@ jobs:
             - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
+            - Facebook FP: https://www.facebook.com/armarchindo/
             - Blog: https://dbai-team.com
             - Pertanyaan dan diskusi ke grup Discord DBAI: https://discord.gg/BXNzaJFTPP
