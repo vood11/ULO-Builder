@@ -30,8 +30,8 @@ rootfs_repo="armarchindo/rootfs-openwrt"
 
 start_cnt=$SECONDS
 
-# --- PERUBAHAN 1: Menambahkan variabel baru untuk mode CI ---
-CI_MODE=false
+															  
+			 
 
 die() {
     echo -e "ERROR.. = $1"
@@ -77,11 +77,11 @@ check_depedencies() {
 }
 
 custom_rootfs_files() {
-    # --- PERUBAHAN 2: Melewatkan fungsi ini jika CI_MODE aktif ---
-    if [ "$CI_MODE" = true ]; then
-        echo "CI Mode: Skipping additional ROOTFS download."
-        return
-    fi
+																   
+								  
+															
+			  
+	  
 
     echo -e "Do you want to add additional ROOTFS? (Y/N)"
     local optz=$1
@@ -116,14 +116,14 @@ custom_rootfs_files() {
 }
 
 check_requirement_files() {
-    # --- PERUBAHAN 3: Melewatkan fungsi ini jika CI_MODE aktif ---
-    if [ "$CI_MODE" = true ]; then
-        echo "CI Mode: Skipping requirement file check."
-        find_devices
-        find_rootfs
-        find_kernels
-        return
-    fi
+																   
+								  
+														
+					
+				   
+					
+			  
+	  
 
     statx=0
     find_devices
@@ -756,7 +756,7 @@ Options:
     -m              : set the device       (-m s905x2)
     -r              : set the rootfs files (-r ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)
     -s, --size=SIZE : set size             (-s 1024)
-    --ci-mode       : Skip all download prompts for CI environment
+																  
 
 EOF
 }
@@ -773,8 +773,8 @@ echo -e "
 " | $lolcat -a -d 5
 [ $(id -u) = 0 ] || die "please run this script as root"
 
-# --- PERUBAHAN 4: Memindahkan 'check_requirement_files' ke dalam blok 'while' ---
-# Ini memastikan flag --ci-mode terbaca SEBELUM pengecekan file dimulai.
+check_requirement_files
+																		
 
 while [ "$1" ]; do
     case "$1" in
@@ -852,10 +852,10 @@ while [ "$1" ]; do
                 die "invalid rootsize $rootsize"
             fi
         ;;
-        # --- PERUBAHAN 3: Menambahkan flag baru untuk mode CI ---
-        --ci-mode)
-            CI_MODE=true
-        ;;
+																  
+				  
+						
+		  
         *)
             usage
             die "invalid option $1"
@@ -864,8 +864,8 @@ while [ "$1" ]; do
     shift
 done
 
-# Panggil pengecekan file setelah semua flag diproses
-check_requirement_files
+													 
+					   
 
 [ "$device" ] && {
     echo -en "device\t\t=>  "
