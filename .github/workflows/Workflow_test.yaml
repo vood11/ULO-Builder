@@ -294,8 +294,8 @@ jobs:
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
-            ### Informasi pemilihan versi firmware OpenWrt
+            ### Informasi firmware OpenWrt
+            - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
             - Blog: https://dbai-team.com
