@@ -19,6 +19,11 @@ on:
         default: 'catatan rilis'
         type: string
 
+# Secara otomatis membatalkan build lama jika ada pemicu baru.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build_ipk:
     permissions:
@@ -28,63 +33,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # SUMBU 1: Pasangan terikat antara device dan kernel.
         config:
-          # --- Perangkat Amlogic Lama ---
+          # --- SoC: Amlogic ---
           - { device: s905x, kernel: '6.1.66-DBAI' }
           - { device: s905x, kernel: '4.9.337' }
-          - { device: s905x2, kernel: '6.1.66-DBAI' }
-          - { device: s905x2, kernel: '5.4.279' }
-          - { device: s905x2, kernel: '4.9.337' }
-          # --- Perangkat Rockchip Lama ---
-          - { device: rk3588s-orangepi-5, kernel: '5.10.160-rk35v-dbai' }
-          # --- Perangkat Allwinner Lama ---
-          - { device: h618-orangepi-zero3, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h618-orangepi-zero3, kernel: '6.1.31-AW64-DBAI' }
-          
-          # --- [BARU] Perangkat Allwinner (A64, H313, H5, H6, H616, H618) ---
-          - { device: a64-bananapi-m64, kernel: '6.1.104-AW64-DBAI' }
-          - { device: a64-bananapi-m64, kernel: '6.1.31-AW64-DBAI' }
-          - { device: a64-nanopi-a64, kernel: '6.1.104-AW64-DBAI' }
-          - { device: a64-nanopi-a64, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h313-x96q-lpddr3, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h313-x96q-lpddr3, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-pc2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-pc2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-prime, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-prime, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-1plus, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-1plus, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-3, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-3, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-3lts, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-3lts, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-lite2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-lite2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-tanix-tx6, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-tanix-tx6, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h616-orangepi-zero2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h616-orangepi-zero2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h616-x96-mate, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h616-x96-mate, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h618-orangepi-zero2w, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h618-orangepi-zero2w, kernel: '6.1.31-AW64-DBAI' }
-
-          # --- [BARU] Perangkat Rockchip (RK3566, RK3588) ---
-          - { device: rk3566-orangepi-3b, kernel: '5.10.160-rk35v-dbai' }
-          - { device: rk3588-orangepi-5-max, kernel: '5.10.160-rk35v-dbai' }
-          - { device: rk3588-orangepi-5-plus, kernel: '5.10.160-rk35v-dbai' }
-
-          # --- [BARU] Perangkat Amlogic (S905X3, S905X4) ---
-          - { device: s905x3, kernel: '6.1.66-DBAI' }
-          - { device: s905x4, kernel: '6.1.66-DBAI' }
-          - { device: s905x4, kernel: '5.4.279' }
-
-        # SUMBU 2: Variabel independen 'rootfs'.
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -140,7 +92,6 @@ jobs:
           name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
           path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
 
-  # Job upload_release tidak perlu diubah
   upload_release:
     needs: build_ipk
     if: success()
@@ -158,13 +109,25 @@ jobs:
         with:
           path: artifacts
 
-      - name: Gabungkan artefak
+      - name: Gabungkan artefak dan Buat Daftar File
         run: |
           mkdir -p combined_artifact
           for artifact in artifacts/openwrt_package_*; do
             mv "$artifact"/* combined_artifact/ || true
           done
-          ls -la combined_artifact/
+          echo "Membuat daftar file untuk catatan rilis..."
+          echo "## Daftar Firmware yang Berhasil Dibuat" > release_body.txt
+          echo "" >> release_body.txt
+          ls -1 combined_artifact/ >> release_body.txt
+          echo "" >> release_body.txt
+          echo "---" >> release_body.txt
+          echo "### Informasi Build Tambahan" >> release_body.txt
+          echo "- Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}" >> release_body.txt
+          echo "- Catatan: ${{ github.event.inputs.fwinfo }}" >> release_body.txt
+          echo "" >> release_body.txt
+          echo "*Workflow ini berjalan pada: $(date)*" >> release_body.txt
+          echo "Daftar file yang dibuat:"
+          cat release_body.txt
 
       - name: Dapatkan Tanggal Saat Ini
         id: date
@@ -186,9 +149,5 @@ jobs:
           tag: ${{ steps.date.outputs.release_tag }}
           file_glob: true
           overwrite: true
-          body: |
-            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions
-            ### Informasi Firmware OpenWrt
-            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
-            - Informasi Firmware: ${{ inputs.fwinfo }}
+          # Menggunakan file yang dibuat di langkah sebelumnya sebagai isi rilis
+          body_path: release_body.txt
