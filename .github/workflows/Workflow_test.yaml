@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_choice:
-        description: 'Pilih RootFS yang akan di-build'
+        description: 'Pilih RootFS yang akan dibuild' # --- PERUBAHAN ---
         required: true
         default: 'all'
         type: choice
@@ -12,6 +12,11 @@ on:
           - all
           - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
           - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
+          # --- PERUBAHAN: Menambahkan list rootfs baru ---
+          - OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
+          - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
+          - OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz
+          - OpenWrt-23.05.5-Mutiara-armsr-armv8-generic-rootfs.tar.gz
       
       device_choice:
         description: 'Pilih Device & Kernel (pilih "all" untuk build semua)'
@@ -75,7 +80,7 @@ on:
       fwinfo:
         description: 'Informasi Firmware'
         required: true
-        default: 's905x default adalah B860H V1-V2 jadi langsung pakai setelah burn (HG680-P dan lainnya perlu ganti DTB setelah burn berlaku selanjutnya), s905x2=HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
+        default: 's905x default adalah B860H V1-V2 jadi tinggal burn (HG680-P dan lainnya tinggal ganti DTB berlaku selanjutnya), s905x2 = HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
         type: string
 
 jobs:
@@ -91,14 +96,22 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
-            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"}]}' >> $GITHUB_OUTPUT
+            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"},{"name":"OpenWrt-23.05.5-Mutiara-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-Mutiara"}]}' >> $GITHUB_OUTPUT
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
             if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="ImmortalWrt-21.02.7-DBAI"
-            else
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="OpenWrt-23.05.4-A2OS"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.4-ALKHANET"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.5-ALKHANET"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.5-InsomWRT"
+            else
+              TAG_SUFFIX="OpenWrt-23.05.5-Mutiara"
             fi
             echo "matrix={\"include\":[{\"name\":\"${{ github.event.inputs.rootfs_choice }}\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           fi
@@ -289,3 +302,5 @@ jobs:
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
+            - Blog: dbai-team.com
+            - Grup Discord: https://discord.gg/BXNzaJFTPP
