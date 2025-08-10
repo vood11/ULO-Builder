@@ -64,6 +64,48 @@ jobs:
         config:
           - { device: s905x, kernel: '6.1.66-DBAI' }
           - { device: s905x, kernel: '4.9.337' }
+          - { device: s905x2, kernel: '6.1.66-DBAI' }
+          - { device: s905x2, kernel: '5.4.279' }
+          - { device: s905x2, kernel: '4.9.337' }
+          - { device: rk3588s-orangepi-5, kernel: '5.10.160-rk35v-dbai' }
+          - { device: h618-orangepi-zero3, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h618-orangepi-zero3, kernel: '6.1.31-AW64-DBAI' }
+          - { device: a64-bananapi-m64, kernel: '6.1.104-AW64-DBAI' }
+          - { device: a64-bananapi-m64, kernel: '6.1.31-AW64-DBAI' }
+          - { device: a64-nanopi-a64, kernel: '6.1.104-AW64-DBAI' }
+          - { device: a64-nanopi-a64, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h313-x96q-lpddr3, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h313-x96q-lpddr3, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-pc2, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-pc2, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-prime, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-prime, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus2, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h5-orangepi-zeroplus2, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-1plus, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-1plus, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-3, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-3, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-3lts, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-3lts, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-orangepi-lite2, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-orangepi-lite2, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h6-tanix-tx6, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h6-tanix-tx6, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h616-orangepi-zero2, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h616-orangepi-zero2, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h616-x96-mate, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h616-x96-mate, kernel: '6.1.31-AW64-DBAI' }
+          - { device: h618-orangepi-zero2w, kernel: '6.1.104-AW64-DBAI' }
+          - { device: h618-orangepi-zero2w, kernel: '6.1.31-AW64-DBAI' }
+          - { device: rk3566-orangepi-3b, kernel: '5.10.160-rk35v-dbai' }
+          - { device: rk3588-orangepi-5-max, kernel: '5.10.160-rk35v-dbai' }
+          - { device: rk3588-orangepi-5-plus, kernel: '5.10.160-rk35v-dbai' }
+          - { device: s905x3, kernel: '6.1.66-DBAI' }
+          - { device: s905x4, kernel: '6.1.66-DBAI' }
+          - { device: s905x4, kernel: '5.4.279' }
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -97,6 +139,13 @@ jobs:
       - name: Membangun OpenWrt
         run: |
           sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
+          if [ $? -ne 0 ]; then
+            echo "Error: Build gagal, perintah ulo keluar dengan kode error"
+            exit 1
+          fi
+          echo "Listing output directory after build..."
+          ls -la out/${{ matrix.config.device }} || echo "Directory out/${{ matrix.config.device }} tidak ada"
+          sudo ls -la /root/out/${{ matrix.config.device }} || echo "Directory /root/out/${{ matrix.config.device }} tidak ada"
 
       - name: Debug Output Directory
         if: always()
@@ -109,22 +158,27 @@ jobs:
       - name: Find Firmware File
         id: find_file
         run: |
-          # Cari file di beberapa lokasi umum, termasuk di direktori root jika sudo mengubah path
-          SEARCH_PATHS=("${{ runner.workspace }}/out/${{ matrix.config.device }}" "/root/out/${{ matrix.config.device }}")
+          SEARCH_PATHS=("${{ runner.workspace }}/out/${{ matrix.config.device }}" "/root/out/${{ matrix.config.device }}" "/tmp/out" "/root/tmp")
           FILE_PATH=""
+          echo "Mencari file di: ${SEARCH_PATHS[@]}"
           for path in "${SEARCH_PATHS[@]}"; do
             if [ -d "$path" ]; then
-              # Gunakan sudo untuk find agar bisa membaca direktori milik root
-              found_file=$(sudo find "$path" -maxdepth 1 -name "*.img.gz" -type f)
+              echo "Isi direktori $path:"
+              sudo ls -la "$path"
+              found_file=$(sudo find "$path" -maxdepth 1 -name "*.img*" -type f)
               if [ -n "$found_file" ]; then
                 FILE_PATH=$found_file
                 break
               fi
+            else
+              echo "Direktori $path tidak ada"
             fi
           done
           
           if [ -z "$FILE_PATH" ]; then
-            echo "Error: File .img.gz tidak ditemukan di lokasi manapun."
+            echo "Error: File .img.gz atau .img tidak ditemukan di lokasi manapun."
+            echo "Mencari semua file untuk debugging:"
+            sudo find ${{ runner.workspace }}/out /root/out /tmp /root/tmp -type f 2>/dev/null || echo "Tidak ada file ditemukan"
             exit 1
           fi
           
