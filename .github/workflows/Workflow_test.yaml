@@ -1,9 +1,9 @@
-name: ULO Autobuilder v2 (Flexible Rootfs)
+name: ULO Autobuilder v2 (Flexible Options)
 
 on:
   workflow_dispatch:
     inputs:
-      # --- PERUBAHAN 1: Input baru untuk memilih RootFS ---
+      # --- PERUBAHAN: Input baru untuk memilih RootFS ---
       rootfs_choice:
         description: 'Pilih RootFS yang akan di-build'
         required: true
@@ -13,6 +13,62 @@ on:
           - all
           - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
           - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
+      
+      # --- PERUBAHAN: Input baru untuk memilih Device & Kernel ---
+      device_choice:
+        description: 'Pilih Device & Kernel (format: device|kernel)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          # Amlogic
+          - 's905x|6.1.66-DBAI'
+          - 's905x|4.9.337'
+          - 's905x2|6.1.66-DBAI'
+          - 's905x2|5.4.279'
+          - 's905x2|4.9.337'
+          - 's905x3|6.1.66-DBAI'
+          - 's905x4|6.1.66-DBAI'
+          - 's905x4|5.4.279'
+          # Rockchip
+          - 'rk3588s-orangepi-5|5.10.160-rk35v-dbai'
+          - 'rk3566-orangepi-3b|5.10.160-rk35v-dbai'
+          - 'rk3588-orangepi-5-max|5.10.160-rk35v-dbai'
+          - 'rk3588-orangepi-5-plus|5.10.160-rk35v-dbai'
+          # Allwinner
+          - 'h618-orangepi-zero3|6.1.104-AW64-DBAI'
+          - 'h618-orangepi-zero3|6.1.31-AW64-DBAI'
+          - 'a64-bananapi-m64|6.1.104-AW64-DBAI'
+          - 'a64-bananapi-m64|6.1.31-AW64-DBAI'
+          - 'a64-nanopi-a64|6.1.104-AW64-DBAI'
+          - 'a64-nanopi-a64|6.1.31-AW64-DBAI'
+          - 'h313-x96q-lpddr3|6.1.104-AW64-DBAI'
+          - 'h313-x96q-lpddr3|6.1.31-AW64-DBAI'
+          - 'h5-orangepi-pc2|6.1.104-AW64-DBAI'
+          - 'h5-orangepi-pc2|6.1.31-AW64-DBAI'
+          - 'h5-orangepi-prime|6.1.104-AW64-DBAI'
+          - 'h5-orangepi-prime|6.1.31-AW64-DBAI'
+          - 'h5-orangepi-zeroplus|6.1.104-AW64-DBAI'
+          - 'h5-orangepi-zeroplus|6.1.31-AW64-DBAI'
+          - 'h5-orangepi-zeroplus2|6.1.104-AW64-DBAI'
+          - 'h5-orangepi-zeroplus2|6.1.31-AW64-DBAI'
+          - 'h6-orangepi-1plus|6.1.104-AW64-DBAI'
+          - 'h6-orangepi-1plus|6.1.31-AW64-DBAI'
+          - 'h6-orangepi-3|6.1.104-AW64-DBAI'
+          - 'h6-orangepi-3|6.1.31-AW64-DBAI'
+          - 'h6-orangepi-3lts|6.1.104-AW64-DBAI'
+          - 'h6-orangepi-3lts|6.1.31-AW64-DBAI'
+          - 'h6-orangepi-lite2|6.1.104-AW64-DBAI'
+          - 'h6-orangepi-lite2|6.1.31-AW64-DBAI'
+          - 'h6-tanix-tx6|6.1.104-AW64-DBAI'
+          - 'h6-tanix-tx6|6.1.31-AW64-DBAI'
+          - 'h616-orangepi-zero2|6.1.104-AW64-DBAI'
+          - 'h616-orangepi-zero2|6.1.31-AW64-DBAI'
+          - 'h616-x96-mate|6.1.104-AW64-DBAI'
+          - 'h616-x96-mate|6.1.31-AW64-DBAI'
+          - 'h618-orangepi-zero2w|6.1.104-AW64-DBAI'
+          - 'h618-orangepi-zero2w|6.1.31-AW64-DBAI'
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
@@ -21,11 +77,12 @@ on:
       fwinfo:
         description: 'Informasi Firmware'
         required: true
-        default: 'catatan rilis'
+        # --- PERUBAHAN: Nilai default diperbarui ---
+        default: 's905x default adalah B860H V1-V2 jadi tinggal burn (HG680-P dan lainnya tinggal ganti DTB berlaku selanjutnya), s905x2 = HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
         type: string
 
 jobs:
-  # Job baru untuk menentukan matriks rootfs secara dinamis
+  # Job untuk menentukan matriks rootfs secara dinamis
   determine_rootfs:
     name: 1. Determine RootFS
     runs-on: ubuntu-latest
@@ -37,18 +94,15 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
-            # Membuat matriks dengan 2 entri untuk build semua rootfs
             echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"}]}' >> $GITHUB_OUTPUT
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
-            # Menentukan suffix untuk nama rilis berdasarkan pilihan
             if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="ImmortalWrt-21.02.7-DBAI"
             else
               TAG_SUFFIX="OpenWrt-23.05.4-A2OS"
             fi
-            # Membuat matriks dengan 1 entri saja
             echo "matrix={\"include\":[{\"name\":\"${{ github.event.inputs.rootfs_choice }}\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           fi
 
@@ -92,31 +146,82 @@ jobs:
              patch -p1 < ./ULO_Workflow.patch
           fi
 
-      - name: Membangun Semua Device untuk RootFS (${{ matrix.name }})
+      - name: Membangun Semua Device (jika 'all' dipilih)
+        if: github.event.inputs.device_choice == 'all'
         run: |
-          # Mendefinisikan daftar perangkat sebagai blok teks yang andal
           DEVICE_LIST=$(cat <<EOF
           {"device":"s905x","kernel":"6.1.66-DBAI"}
+          {"device":"s905x","kernel":"4.9.337"}
+          {"device":"s905x2","kernel":"6.1.66-DBAI"}
+          {"device":"s905x2","kernel":"5.4.279"}
+          {"device":"s905x2","kernel":"4.9.337"}
+          {"device":"s905x3","kernel":"6.1.66-DBAI"}
+          {"device":"s905x4","kernel":"6.1.66-DBAI"}
+          {"device":"s905x4","kernel":"5.4.279"}
+          {"device":"rk3588s-orangepi-5","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"rk3566-orangepi-3b","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"rk3588-orangepi-5-max","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"rk3588-orangepi-5-plus","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"h618-orangepi-zero3","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h618-orangepi-zero3","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"a64-bananapi-m64","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"a64-bananapi-m64","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"a64-nanopi-a64","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"a64-nanopi-a64","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h313-x96q-lpddr3","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h313-x96q-lpddr3","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-pc2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-pc2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-prime","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-prime","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-1plus","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-1plus","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-3","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-3","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-3lts","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-3lts","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-lite2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-lite2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-tanix-tx6","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-tanix-tx6","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h616-orangepi-zero2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h616-orangepi-zero2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h616-x96-mate","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h616-x96-mate","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h618-orangepi-zero2w","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h618-orangepi-zero2w","kernel":"6.1.31-AW64-DBAI"}
           EOF
           )
 
-          # Memproses daftar perangkat baris per baris
           echo "$DEVICE_LIST" | while read -r device_config; do
             if [ -z "$device_config" ]; then continue; fi
-
             DEVICE=$(echo "$device_config" | jq -r .device)
             KERNEL=$(echo "$device_config" | jq -r .kernel)
-            
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            
             sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
-            
             echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
             cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
           done
+
+      - name: Membangun Device Spesifik (jika bukan 'all')
+        if: github.event.inputs.device_choice != 'all'
+        run: |
+          DEVICE=$(echo ${{ github.event.inputs.device_choice }} | cut -d'|' -f1)
+          KERNEL=$(echo ${{ github.event.inputs.device_choice }} | cut -d'|' -f2)
+          echo "=========================================================="
+          echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
+          echo "=========================================================="
+          sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+          echo "Membuat artefak untuk $DEVICE..."
+          mkdir -p ./artifact/"$DEVICE"
+          cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
 
       - name: Mengirim Paket
         uses: actions/upload-artifact@v4
@@ -149,12 +254,10 @@ jobs:
       - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
-          # Perintah ini akan menemukan semua file di dalam sub-direktori dan memindahkannya
           find ./artifacts -type f -exec mv {} ./combined_artifact/ \;
           echo "Isi folder yang akan dirilis:"
           ls -la combined_artifact/
 
-      # --- PERUBAHAN 2: Nama rilis diubah menjadi dinamis ---
       - name: Dapatkan Tanggal Saat Ini
         id: date
         run: |
@@ -165,7 +268,8 @@ jobs:
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
-          echo "release_tag=ULO-RELEASE_${{ matrix.tag_suffix }}_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+          # --- PERUBAHAN: Format tag rilis diperbarui ---
+          echo "release_tag=${{ matrix.tag_suffix }}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
@@ -177,7 +281,8 @@ jobs:
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions untuk RootFS: **${{ matrix.tag_suffix }}**
+            # --- PERUBAHAN: Teks body diperbarui ---
+            Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
