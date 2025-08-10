@@ -92,7 +92,7 @@ jobs:
           name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
           path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
 
-  upload_release:
+upload_release:
     needs: build_ipk
     if: success()
     permissions:
@@ -109,7 +109,9 @@ jobs:
         with:
           path: artifacts
 
+      # --- PERUBAHAN 1: Menambahkan 'id' dan menyimpan konten file sebagai output ---
       - name: Gabungkan artefak dan Buat Daftar File
+        id: body_generator # Memberi ID pada langkah ini
         run: |
           mkdir -p combined_artifact
           for artifact in artifacts/openwrt_package_*; do
@@ -126,8 +128,14 @@ jobs:
           echo "- Catatan: ${{ github.event.inputs.fwinfo }}" >> release_body.txt
           echo "" >> release_body.txt
           echo "*Workflow ini berjalan pada: $(date)*" >> release_body.txt
-          echo "Daftar file yang dibuat:"
-          cat release_body.txt
+          
+          # Baris ini membaca isi file dan menyimpannya ke output langkah
+          # Ini adalah sintaks standar GitHub untuk output multi-baris
+          {
+            echo 'body<<EOF'
+            cat release_body.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Dapatkan Tanggal Saat Ini
         id: date
@@ -141,6 +149,7 @@ jobs:
           tahun=$(date +%Y)
           echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
+      # --- PERUBAHAN 2: Menggunakan 'body' dengan output dari langkah sebelumnya ---
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
         with:
@@ -149,5 +158,5 @@ jobs:
           tag: ${{ steps.date.outputs.release_tag }}
           file_glob: true
           overwrite: true
-          # Menggunakan file yang dibuat di langkah sebelumnya sebagai isi rilis
-          body_path: release_body.txt
+          # Menggunakan parameter 'body' yang benar dan mengisinya dengan output langkah 'body_generator'
+          body: ${{ steps.body_generator.outputs.body }}
