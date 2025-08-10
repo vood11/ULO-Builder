@@ -24,8 +24,9 @@ on:
         type: string
 
 jobs:
-  # Job baru untuk menentukan matriks rootfs secara dinamis
+  # Job untuk menentukan matriks rootfs secara dinamis
   determine_rootfs:
+    name: 1. Determine RootFS
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -34,10 +35,10 @@ jobs:
         id: set-matrix
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
-            echo "Building all RootFS versions."
+            echo "Akan build semua versi RootFS."
             echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt"}]}' >> $GITHUB_OUTPUT
           else
-            echo "Building selected RootFS: ${{ github.event.inputs.rootfs_choice }}"
+            echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
             if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="ImmortalWrt"
@@ -48,10 +49,10 @@ jobs:
           fi
 
   build_ipk:
+    name: 2. Build Firmware
     needs: determine_rootfs
     permissions:
       contents: write
-    name: ULO Autobuilder
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -87,14 +88,21 @@ jobs:
              patch -p1 < ./ULO_Workflow.patch
           fi
 
+      # --- PERBAIKAN UTAMA: Mengubah cara loop untuk menghindari error sintaks ---
       - name: Membangun Semua Device untuk RootFS (${{ matrix.name }})
         run: |
-          for device_config in \
-            '{"device":"s905x","kernel":"6.1.66-DBAI"}' \
-            '{"device":"s905x","kernel":"4.9.337"}' \
-          do
-            DEVICE=$(echo $device_config | jq -r .device)
-            KERNEL=$(echo $device_config | jq -r .kernel)
+          # Mendefinisikan daftar perangkat sebagai blok teks yang andal
+          DEVICE_LIST=$(cat <<EOF
+          {"device":"s905x","kernel":"6.1.66-DBAI"}
+          EOF
+          )
+
+          # Memproses daftar perangkat baris per baris
+          echo "$DEVICE_LIST" | while read -r device_config; do
+            if [ -z "$device_config" ]; then continue; fi
+
+            DEVICE=$(echo "$device_config" | jq -r .device)
+            KERNEL=$(echo "$device_config" | jq -r .kernel)
             
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
@@ -114,14 +122,15 @@ jobs:
           path: ./artifact/
 
   upload_release:
-    needs: build_ipk
+    name: 3. Create Release
+    needs: [determine_rootfs, build_ipk]
     if: success()
     permissions:
       contents: write
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.build_ipk.jobs.determine_rootfs.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.determine_rootfs.outputs.matrix) }}
     steps:
       - name: Checkout Repositori
         uses: actions/checkout@v4
@@ -162,7 +171,7 @@ jobs:
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions untuk RootFS: ${{ matrix.tag_suffix }}
+            Firmware ini dibuild menggunakan Github Actions untuk RootFS: **${{ matrix.tag_suffix }}**
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
