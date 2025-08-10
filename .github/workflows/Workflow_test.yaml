@@ -1,21 +1,3 @@
-Tentu, saya mengerti sepenuhnya. Format `device|kernel` memang tidak intuitif dan sulit dibaca, terutama jika daftarnya panjang.
-
-Mari kita reset lagi ke skrip stabil yang Anda berikan dan saya akan memperbaikinya dengan format dropdown yang jauh lebih ramah pengguna.
-
-### Solusi: Menggunakan Format Deskriptif
-
-Kita akan mengubah opsi di dropdown menjadi format yang lebih deskriptif dan mudah dibaca, seperti:
-`Amlogic: s905x (Kernel 6.1.66-DBAI)`
-
-Kemudian, skrip akan secara cerdas **mengekstrak** informasi `device` dan `kernel` dari teks deskriptif tersebut sebelum menjalankan build. Ini memberikan pengalaman pengguna terbaik tanpa mengorbankan fungsionalitas.
-
-Berikut adalah skrip lengkap yang telah diperbaiki dengan format baru yang mudah dibaca.
-
------
-
-### Skrip Lengkap dengan Opsi yang Mudah Dibaca
-
-```yaml
 name: ULO Autobuilder v2 (Flexible Options)
 
 on:
@@ -309,4 +291,3 @@ jobs:
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
-```
