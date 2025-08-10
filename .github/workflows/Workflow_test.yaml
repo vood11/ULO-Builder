@@ -88,16 +88,13 @@ jobs:
              patch -p1 < ./ULO_Workflow.patch
           fi
 
-      # --- PERBAIKAN UTAMA: Mengubah cara loop untuk menghindari error sintaks ---
       - name: Membangun Semua Device untuk RootFS (${{ matrix.name }})
         run: |
-          # Mendefinisikan daftar perangkat sebagai blok teks yang andal
           DEVICE_LIST=$(cat <<EOF
           {"device":"s905x","kernel":"6.1.66-DBAI"}
           EOF
           )
 
-          # Memproses daftar perangkat baris per baris
           echo "$DEVICE_LIST" | while read -r device_config; do
             if [ -z "$device_config" ]; then continue; fi
 
@@ -143,10 +140,13 @@ jobs:
           name: openwrt_package_${{ matrix.tag_suffix }}
           path: artifacts
 
+      # --- PERBAIKAN UTAMA: Mengubah cara menggabungkan artefak ---
       - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
-          cp -rf ./artifacts/* ./combined_artifact/ || echo "Tidak ada artefak untuk digabungkan."
+          # Perintah ini akan menemukan semua file di dalam sub-direktori dan memindahkannya
+          find ./artifacts -type f -exec mv {} ./combined_artifact/ \;
+          echo "Isi folder yang akan dirilis:"
           ls -la combined_artifact/
 
       - name: Dapatkan Tanggal Saat Ini
