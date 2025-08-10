@@ -1,9 +1,26 @@
+Tentu, saya mengerti sepenuhnya. Format `device|kernel` memang tidak intuitif dan sulit dibaca, terutama jika daftarnya panjang.
+
+Mari kita reset lagi ke skrip stabil yang Anda berikan dan saya akan memperbaikinya dengan format dropdown yang jauh lebih ramah pengguna.
+
+### Solusi: Menggunakan Format Deskriptif
+
+Kita akan mengubah opsi di dropdown menjadi format yang lebih deskriptif dan mudah dibaca, seperti:
+`Amlogic: s905x (Kernel 6.1.66-DBAI)`
+
+Kemudian, skrip akan secara cerdas **mengekstrak** informasi `device` dan `kernel` dari teks deskriptif tersebut sebelum menjalankan build. Ini memberikan pengalaman pengguna terbaik tanpa mengorbankan fungsionalitas.
+
+Berikut adalah skrip lengkap yang telah diperbaiki dengan format baru yang mudah dibaca.
+
+-----
+
+### Skrip Lengkap dengan Opsi yang Mudah Dibaca
+
+```yaml
 name: ULO Autobuilder v2 (Flexible Options)
 
 on:
   workflow_dispatch:
     inputs:
-      # --- PERUBAHAN: Input baru untuk memilih RootFS ---
       rootfs_choice:
         description: 'Pilih RootFS yang akan di-build'
         required: true
@@ -14,61 +31,61 @@ on:
           - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
           - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
       
-      # --- PERUBAHAN: Input baru untuk memilih Device & Kernel ---
+      # --- PERUBAHAN: Opsi device dibuat lebih deskriptif dan mudah dibaca ---
       device_choice:
-        description: 'Pilih Device & Kernel (format: device|kernel)'
+        description: 'Pilih Device & Kernel (pilih "all" untuk build semua)'
         required: true
         default: 'all'
         type: choice
         options:
           - all
-          # Amlogic
-          - 's905x|6.1.66-DBAI'
-          - 's905x|4.9.337'
-          - 's905x2|6.1.66-DBAI'
-          - 's905x2|5.4.279'
-          - 's905x2|4.9.337'
-          - 's905x3|6.1.66-DBAI'
-          - 's905x4|6.1.66-DBAI'
-          - 's905x4|5.4.279'
-          # Rockchip
-          - 'rk3588s-orangepi-5|5.10.160-rk35v-dbai'
-          - 'rk3566-orangepi-3b|5.10.160-rk35v-dbai'
-          - 'rk3588-orangepi-5-max|5.10.160-rk35v-dbai'
-          - 'rk3588-orangepi-5-plus|5.10.160-rk35v-dbai'
-          # Allwinner
-          - 'h618-orangepi-zero3|6.1.104-AW64-DBAI'
-          - 'h618-orangepi-zero3|6.1.31-AW64-DBAI'
-          - 'a64-bananapi-m64|6.1.104-AW64-DBAI'
-          - 'a64-bananapi-m64|6.1.31-AW64-DBAI'
-          - 'a64-nanopi-a64|6.1.104-AW64-DBAI'
-          - 'a64-nanopi-a64|6.1.31-AW64-DBAI'
-          - 'h313-x96q-lpddr3|6.1.104-AW64-DBAI'
-          - 'h313-x96q-lpddr3|6.1.31-AW64-DBAI'
-          - 'h5-orangepi-pc2|6.1.104-AW64-DBAI'
-          - 'h5-orangepi-pc2|6.1.31-AW64-DBAI'
-          - 'h5-orangepi-prime|6.1.104-AW64-DBAI'
-          - 'h5-orangepi-prime|6.1.31-AW64-DBAI'
-          - 'h5-orangepi-zeroplus|6.1.104-AW64-DBAI'
-          - 'h5-orangepi-zeroplus|6.1.31-AW64-DBAI'
-          - 'h5-orangepi-zeroplus2|6.1.104-AW64-DBAI'
-          - 'h5-orangepi-zeroplus2|6.1.31-AW64-DBAI'
-          - 'h6-orangepi-1plus|6.1.104-AW64-DBAI'
-          - 'h6-orangepi-1plus|6.1.31-AW64-DBAI'
-          - 'h6-orangepi-3|6.1.104-AW64-DBAI'
-          - 'h6-orangepi-3|6.1.31-AW64-DBAI'
-          - 'h6-orangepi-3lts|6.1.104-AW64-DBAI'
-          - 'h6-orangepi-3lts|6.1.31-AW64-DBAI'
-          - 'h6-orangepi-lite2|6.1.104-AW64-DBAI'
-          - 'h6-orangepi-lite2|6.1.31-AW64-DBAI'
-          - 'h6-tanix-tx6|6.1.104-AW64-DBAI'
-          - 'h6-tanix-tx6|6.1.31-AW64-DBAI'
-          - 'h616-orangepi-zero2|6.1.104-AW64-DBAI'
-          - 'h616-orangepi-zero2|6.1.31-AW64-DBAI'
-          - 'h616-x96-mate|6.1.104-AW64-DBAI'
-          - 'h616-x96-mate|6.1.31-AW64-DBAI'
-          - 'h618-orangepi-zero2w|6.1.104-AW64-DBAI'
-          - 'h618-orangepi-zero2w|6.1.31-AW64-DBAI'
+          # --- Amlogic ---
+          - 'Amlogic: s905x (Kernel 6.1.66-DBAI)'
+          - 'Amlogic: s905x (Kernel 4.9.337)'
+          - 'Amlogic: s905x2 (Kernel 6.1.66-DBAI)'
+          - 'Amlogic: s905x2 (Kernel 5.4.279)'
+          - 'Amlogic: s905x2 (Kernel 4.9.337)'
+          - 'Amlogic: s905x3 (Kernel 6.1.66-DBAI)'
+          - 'Amlogic: s905x4 (Kernel 6.1.66-DBAI)'
+          - 'Amlogic: s905x4 (Kernel 5.4.279)'
+          # --- Rockchip ---
+          - 'Rockchip: rk3588s-orangepi-5 (Kernel 5.10.160-rk35v-dbai)'
+          - 'Rockchip: rk3566-orangepi-3b (Kernel 5.10.160-rk35v-dbai)'
+          - 'Rockchip: rk3588-orangepi-5-max (Kernel 5.10.160-rk35v-dbai)'
+          - 'Rockchip: rk3588-orangepi-5-plus (Kernel 5.10.160-rk35v-dbai)'
+          # --- Allwinner ---
+          - 'Allwinner: h618-orangepi-zero3 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h618-orangepi-zero3 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: a64-bananapi-m64 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: a64-bananapi-m64 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: a64-nanopi-a64 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: a64-nanopi-a64 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h313-x96q-lpddr3 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h313-x96q-lpddr3 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-pc2 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-pc2 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-prime (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-prime (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-zeroplus (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-zeroplus (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-zeroplus2 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h5-orangepi-zeroplus2 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-1plus (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-1plus (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-3 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-3 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-3lts (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-3lts (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-lite2 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h6-orangepi-lite2 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h6-tanix-tx6 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h6-tanix-tx6 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h616-orangepi-zero2 (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h616-orangepi-zero2 (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h616-x96-mate (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h616-x96-mate (Kernel 6.1.31-AW64-DBAI)'
+          - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.104-AW64-DBAI)'
+          - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.31-AW64-DBAI)'
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
@@ -77,12 +94,10 @@ on:
       fwinfo:
         description: 'Informasi Firmware'
         required: true
-        # --- PERUBAHAN: Nilai default diperbarui ---
         default: 's905x default adalah B860H V1-V2 jadi tinggal burn (HG680-P dan lainnya tinggal ganti DTB berlaku selanjutnya), s905x2 = HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
         type: string
 
 jobs:
-  # Job untuk menentukan matriks rootfs secara dinamis
   determine_rootfs:
     name: 1. Determine RootFS
     runs-on: ubuntu-latest
@@ -213,12 +228,20 @@ jobs:
       - name: Membangun Device Spesifik (jika bukan 'all')
         if: github.event.inputs.device_choice != 'all'
         run: |
-          DEVICE=$(echo ${{ github.event.inputs.device_choice }} | cut -d'|' -f1)
-          KERNEL=$(echo ${{ github.event.inputs.device_choice }} | cut -d'|' -f2)
+          CHOICE="${{ github.event.inputs.device_choice }}"
+          # Mengekstrak device: ambil teks antara ": " dan " ("
+          DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
+          # Mengekstrak kernel: ambil teks antara "(Kernel " dan ")"
+          KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
+          
           echo "=========================================================="
-          echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
+          echo "Pilihan Pengguna: $CHOICE"
+          echo "Hasil Ekstraksi -> Device: $DEVICE, Kernel: $KERNEL"
+          echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
+          
           sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+          
           echo "Membuat artefak untuk $DEVICE..."
           mkdir -p ./artifact/"$DEVICE"
           cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
@@ -286,3 +309,4 @@ jobs:
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
+```
