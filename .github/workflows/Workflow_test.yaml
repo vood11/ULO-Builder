@@ -1,4 +1,4 @@
-name: ULO Autobuilder v2 (Final)
+name: ULO Autobuilder v2 (Final, Fast & Modern)
 
 on:
   workflow_dispatch:
@@ -15,14 +15,14 @@ on:
         type: string
 
 jobs:
-  # JOB 1: Membuat Draf Rilis terlebih dahulu
+  # JOB 1: Menggunakan 'gh' CLI yang modern untuk membuat rilis
   create_release:
     name: 1. Create Draft Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write 
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      upload_url: ${{ steps.create_release_step.outputs.upload_url }}
       release_tag: ${{ steps.get_date.outputs.release_tag }}
     steps:
       - name: Dapatkan Tanggal dan Buat Tag
@@ -34,24 +34,29 @@ jobs:
           tahun=$(date +%Y)
           echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
-      - name: Create Draft Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create Draft Release via GH CLI
+        id: create_release_step
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.get_date.outputs.release_tag }}
-          release_name: "Rilis ULO Autobuild | ${{ steps.get_date.outputs.release_tag }}"
-          body: |
-            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions
-            ### Informasi Firmware OpenWrt
-            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
-            - Informasi Firmware: ${{ inputs.fwinfo }}
-          draft: true
-          prerelease: false
+        run: |
+          RELEASE_TAG="${{ steps.get_date.outputs.release_tag }}"
+          RELEASE_BODY=$(cat <<EOF
+          ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
+          Firmware ini dibuild menggunakan Github Actions
+          ### Informasi Firmware OpenWrt
+          - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
+          - Informasi Firmware: ${{ inputs.fwinfo }}
+          EOF
+          )
+          
+          # Membuat draf rilis menggunakan gh cli
+          gh release create "$RELEASE_TAG" --draft --title "Rilis ULO Autobuild | $RELEASE_TAG" --notes "$RELEASE_BODY"
+          
+          # Mendapatkan upload_url dan menyimpannya ke output
+          UPLOAD_URL=$(gh release view "$RELEASE_TAG" --json uploadUrl -q .uploadUrl)
+          echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
 
-  # JOB 2: Membangun semua firmware secara paralel dan langsung mengunggahnya
+  # JOB 2: Membangun firmware dengan pencarian file yang cepat
   build_and_upload:
     name: 2. Build and Upload Firmware
     needs: create_release
@@ -62,8 +67,9 @@ jobs:
       fail-fast: false
       matrix:
         config:
+          # --- SoC: Amlogic ---
           - { device: s905x, kernel: '6.1.66-DBAI' }
-          - { device: s905x4, kernel: '5.4.279' }
+          - { device: s905x, kernel: '4.9.337' }
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -81,31 +87,26 @@ jobs:
             patch -p1 < ./ULO_Workflow.patch
           fi
       
-      # --- LANGKAH BUILD DAN PENCARIAN FILE DIGABUNGKAN ---
       - name: Build Firmware and Find Output File
         id: build_and_find
         run: |
-          # 1. Jalankan proses build dengan sudo
+          # 1. Jalankan proses build
           sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
 
-          echo "Proses build selesai. Mencari file output di seluruh sistem..."
+          echo "Build selesai. Mencari file output di lokasi spesifik..."
           
-          # 2. Cari file .img.gz yang baru dibuat (dalam 5 menit terakhir) di seluruh sistem
-          #    Ini cara paling andal untuk menemukan file, di manapun lokasinya.
-          #    2>/dev/null digunakan untuk menyembunyikan error "permission denied" agar log bersih.
-          FILE_PATH=$(sudo find / -name "*.img.gz" -type f -newermt "-5 minutes" 2>/dev/null)
+          # 2. Cari file hanya di direktori /root/out (jauh lebih cepat)
+          #    CATATAN: Pastikan path ini (/root/out) sesuai dengan lokasi file dari log build Anda.
+          SEARCH_DIR="/root/out"
+          FILE_PATH=$(sudo find "${SEARCH_DIR}/${{ matrix.config.device }}" -maxdepth 1 -name "*.img.gz" -type f)
           
           if [ -z "$FILE_PATH" ]; then
-            echo "FATAL ERROR: Tidak ada file .img.gz yang ditemukan setelah proses build selesai."
+            echo "FATAL ERROR: File .img.gz tidak ditemukan di ${SEARCH_DIR}/${{ matrix.config.device }}"
             exit 1
           fi
           
-          # Mengambil hanya baris pertama jika 'find' menemukan lebih dari satu file
-          FILE_PATH=$(echo "$FILE_PATH" | head -n 1)
-
-          # 3. Simpan path yang ditemukan ke environment agar bisa dipakai di langkah selanjutnya
           echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
-          echo "SUKSES: File ditemukan di $FILE_PATH"
+          echo "SUCCESS: File ditemukan di $FILE_PATH"
 
       - name: Upload Firmware to Release
         uses: actions/upload-release-asset@v1
@@ -117,7 +118,7 @@ jobs:
           asset_name: ${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}.img.gz
           asset_content_type: application/gzip
 
-  # JOB 3: Mempublikasikan rilis setelah semua build selesai dan diunggah
+  # JOB 3: Mempublikasikan rilis
   publish_release:
     name: 3. Publish Release
     needs: [create_release, build_and_upload]
@@ -127,9 +128,6 @@ jobs:
     if: success()
     steps:
       - name: Publish the release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ needs.create_release.outputs.release_tag }}
-          draft: false
-          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit ${{ needs.create_release.outputs.release_tag }} --draft=false
