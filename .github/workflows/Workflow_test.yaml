@@ -1,4 +1,4 @@
-name: ULO Autobuilder v2 (Final, Robust)
+name: ULO Autobuilder v2 (Final, Fast & Modern)
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ on:
         type: string
 
 jobs:
-  # JOB 1: Membuat Draf Rilis terlebih dahulu
+  # JOB 1: Menggunakan 'gh' CLI yang modern untuk membuat rilis
   create_release:
     name: 1. Create Draft Release
     runs-on: ubuntu-latest
@@ -57,9 +57,9 @@ jobs:
           UPLOAD_URL=$(gh release view "$RELEASE_TAG" --json uploadUrl -q .uploadUrl)
           echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
 
-  # JOB 2: Membangun firmware dengan metode pencarian dan pemindahan yang andal
+  # JOB 2: Membangun firmware dengan pencarian file yang cepat dan tertarget
   build_and_upload:
-    name: 2. Build, Find, and Upload Firmware
+    name: 2. Build and Upload Firmware
     needs: create_release
     runs-on: ubuntu-latest
     permissions:
@@ -70,6 +70,7 @@ jobs:
         config:
           # --- SoC: Amlogic ---
           - { device: s905x, kernel: '6.1.66-DBAI' }
+          - { device: s905x, kernel: '4.9.337' }
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -87,40 +88,29 @@ jobs:
             patch -p1 < ./ULO_Workflow.patch
           fi
       
-      - name: Build, Find, and Relocate Firmware
-        id: build_and_find
+      - name: Membangun OpenWrt
         run: |
-          # 1. Jalankan proses build dengan sudo
           sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
 
-          echo "Build selesai. Mencari file output..."
+      # --- PERUBAHAN UTAMA: PENCARIAN FILE MENJADI SANGAT CEPAT ---
+      - name: Find Firmware File
+        id: find_file
+        run: |
+          # Karena lokasi sudah diketahui, kita cari HANYA di direktori ini.
+          SEARCH_DIR="${{ runner.workspace }}/out/${{ matrix.config.device }}"
           
-          # 2. Cari file .img.gz yang baru dibuat (dalam 15 menit terakhir) di seluruh sistem.
-          #    Ini adalah cara paling andal untuk menemukan file, di manapun lokasinya.
-          FOUND_FILE=$(sudo find / -name "*.img.gz" -type f -newermt "-15 minutes" 2>/dev/null | head -n 1)
+          # 'find' di sini akan berjalan instan. sudo mungkin masih diperlukan jika 'ulo' mengubah izin folder.
+          FILE_PATH=$(sudo find "$SEARCH_DIR" -maxdepth 1 -name "*.img.gz" -type f)
           
-          if [ -z "$FOUND_FILE" ]; then
-            echo "FATAL ERROR: Tidak ada file .img.gz yang ditemukan setelah proses build selesai."
+          if [ -z "$FILE_PATH" ]; then
+            echo "FATAL ERROR: File .img.gz tidak ditemukan di direktori yang diharapkan: $SEARCH_DIR"
+            echo "Isi direktori:"
+            ls -laR "$SEARCH_DIR"
             exit 1
           fi
-
-          # 3. Buat direktori tujuan yang pasti di dalam workspace
-          DEST_DIR="${{ runner.workspace }}/firmware_output"
-          mkdir -p "$DEST_DIR"
-
-          # 4. Pindahkan file yang ditemukan ke direktori tujuan
-          sudo mv "$FOUND_FILE" "$DEST_DIR/"
           
-          # 5. Dapatkan nama file saja (tanpa path)
-          FILENAME=$(basename "$FOUND_FILE")
-          
-          # 6. Kembalikan kepemilikan file ke user runner agar bisa diakses langkah selanjutnya
-          sudo chown runner:docker "$DEST_DIR/$FILENAME"
-
-          # 7. Simpan path BARU yang sudah pasti ini ke environment
-          FINAL_PATH="$DEST_DIR/$FILENAME"
-          echo "FILE_PATH=$FINAL_PATH" >> $GITHUB_ENV
-          echo "SUKSES: File dipindahkan ke $FINAL_PATH"
+          echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
+          echo "File ditemukan di: $FILE_PATH"
 
       - name: Upload Firmware to Release
         uses: actions/upload-release-asset@v1
@@ -141,6 +131,10 @@ jobs:
       contents: write
     if: success()
     steps:
+      # --- TAMBAHKAN LANGKAH INI ---
+      - name: Checkout Repositori
+        uses: actions/checkout@v4
+
       - name: Publish the release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
