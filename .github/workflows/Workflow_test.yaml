@@ -210,7 +210,8 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            # --- PERUBAHAN: Menambahkan flag --skip-rootfs-download ---
+            sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}" --skip-rootfs-download
             echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
             cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
@@ -220,9 +221,7 @@ jobs:
         if: github.event.inputs.device_choice != 'all'
         run: |
           CHOICE="${{ github.event.inputs.device_choice }}"
-          # Mengekstrak device: ambil teks antara ": " dan " ("
           DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
-          # Mengekstrak kernel: ambil teks antara "(Kernel " dan ")"
           KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
           
           echo "=========================================================="
@@ -231,7 +230,8 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-          sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+          # --- PERUBAHAN: Menambahkan flag --skip-rootfs-download ---
+          sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}" --skip-rootfs-download
           
           echo "Membuat artefak untuk $DEVICE..."
           mkdir -p ./artifact/"$DEVICE"
