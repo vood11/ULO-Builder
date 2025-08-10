@@ -1,9 +1,4 @@
-name: ULO Autobuilder v2
-
-# Referensi Daftar untuk Kemudahan Pengeditan
-# DEVICES: s905x, s905x2, s905x3, s905x4, h313, h5, h6, h616, h618, a64, rk3566, rk3588, dll.
-# KERNELS: 6.1.66-DBAI, 5.4.279, 4.9.337, 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI, 5.10.160-rk35v-dbai
-# ROOTFS_FILES: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz, OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
+name: ULO Autobuilder v2 (Efficient Upload)
 
 on:
   workflow_dispatch:
@@ -20,74 +15,60 @@ on:
         type: string
 
 jobs:
-  build_ipk:
-    permissions:
-      contents: write
-    name: ULO Autobuilder
+  # JOB 1: Membuat Draf Rilis terlebih dahulu
+  create_release:
+    name: 1. Create Draft Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Diperlukan untuk membuat rilis
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_tag: ${{ steps.get_date.outputs.release_tag }}
+    steps:
+      - name: Dapatkan Tanggal dan Buat Tag
+        id: get_date
+        run: |
+          export TZ="Asia/Jakarta"
+          bulan=$(date +%B)
+          tanggal=$(date +%d)
+          tahun=$(date +%Y)
+          echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+
+      - name: Create Draft Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_date.outputs.release_tag }}
+          release_name: "Rilis ULO Autobuild | ${{ steps.get_date.outputs.release_tag }}"
+          body: |
+            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
+            Firmware ini dibuild menggunakan Github Actions
+            ### Informasi Firmware OpenWrt
+            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
+            - Informasi Firmware: ${{ inputs.fwinfo }}
+          draft: true
+          prerelease: false
+
+  # JOB 2: Membangun semua firmware secara paralel dan langsung mengunggahnya
+  build_and_upload:
+    name: 2. Build and Upload Firmware
+    needs: create_release # Menunggu Job 1 selesai
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Diperlukan untuk upload aset ke rilis
     strategy:
       fail-fast: false
       matrix:
-        # SUMBU 1: Pasangan terikat antara device dan kernel.
         config:
-          # --- Perangkat Amlogic Lama ---
+          # --- Daftar lengkap perangkat dan kernel Anda di sini ---
           - { device: s905x, kernel: '6.1.66-DBAI' }
           - { device: s905x, kernel: '4.9.337' }
           - { device: s905x2, kernel: '6.1.66-DBAI' }
-          - { device: s905x2, kernel: '4.9.337' }
-          # --- Perangkat Rockchip Lama ---
-          - { device: rk3588s-orangepi-5, kernel: '5.10.160-rk35v-dbai' }
-          # --- Perangkat Allwinner Lama ---
-          - { device: h618-orangepi-zero3, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h618-orangepi-zero3, kernel: '6.1.31-AW64-DBAI' }
-          
-          # --- [BARU] Perangkat Allwinner (A64, H313, H5, H6, H616, H618) ---
-          - { device: a64-bananapi-m64, kernel: '6.1.104-AW64-DBAI' }
-          - { device: a64-bananapi-m64, kernel: '6.1.31-AW64-DBAI' }
-          - { device: a64-nanopi-a64, kernel: '6.1.104-AW64-DBAI' }
-          - { device: a64-nanopi-a64, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h313-x96q-lpddr3, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h313-x96q-lpddr3, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-pc2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-pc2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-prime, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-prime, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h5-orangepi-zeroplus2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-1plus, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-1plus, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-3, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-3, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-3lts, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-3lts, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-orangepi-lite2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-orangepi-lite2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h6-tanix-tx6, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h6-tanix-tx6, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h616-orangepi-zero2, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h616-orangepi-zero2, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h616-x96-mate, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h616-x96-mate, kernel: '6.1.31-AW64-DBAI' }
-          - { device: h618-orangepi-zero2w, kernel: '6.1.104-AW64-DBAI' }
-          - { device: h618-orangepi-zero2w, kernel: '6.1.31-AW64-DBAI' }
-
-          # --- [BARU] Perangkat Rockchip (RK3566, RK3588) ---
-          - { device: rk3566-orangepi-3b, kernel: '5.10.160-rk35v-dbai' }
-          - { device: rk3588-orangepi-5-max, kernel: '5.10.160-rk35v-dbai' }
-          - { device: rk3588-orangepi-5-plus, kernel: '5.10.160-rk35v-dbai' }
-
-          # --- [BARU] Perangkat Amlogic (S905X3, S905X4) ---
-          - { device: s905x3, kernel: '6.1.66-DBAI' }
-          - { device: s905x4, kernel: '6.1.66-DBAI' }
-          - { device: s905x4, kernel: '5.4.279' }
-
-        # SUMBU 2: Variabel independen 'rootfs'.
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -100,8 +81,6 @@ jobs:
 
       - name: Checkout Repositori
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Cache repositori ULO
         uses: actions/cache@v4
@@ -119,77 +98,32 @@ jobs:
 
       - name: Membangun OpenWrt
         run: |
-          echo "Memeriksa ketersediaan repositori ULO..."
-          curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }} || \
-          (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
-          echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
-          ls -la ./out/
+          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
 
-      - name: Membuat Artefak Paket
-        if: success() || failure()
-        run: |
-          mkdir -p ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}
-          cp -rf ./out/${{ matrix.config.device }}/* ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/ || true
-
-      - name: Mengirim Paket
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
+      - name: Upload Firmware to Release
+        id: upload_asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
-          path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./${{ runner.workspace }}/out/${{ matrix.config.device }}/$(ls ${{ runner.workspace }}/out/${{ matrix.config.device }}/ | grep .img.gz)
+          asset_name: ${{ matrix.config.device }}-${{ matrix.config.kernel }}-${{ matrix.rootfs }}.img.gz
+          asset_content_type: application/gzip
 
-  # Job upload_release tidak perlu diubah
-upload_release:
-    needs: build_ipk
-    if: success()
+  # JOB 3: Mempublikasikan rilis setelah semua build selesai dan diunggah
+  publish_release:
+    name: 3. Publish Release
+    needs: [create_release, build_and_upload]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    if: success() # Hanya berjalan jika semua job sebelumnya sukses
     steps:
-      - name: Checkout Repositori
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Unduh semua artefak
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Gabungkan artefak
-        run: |
-          mkdir -p combined_artifact
-          # GUNAKAN 'mv' BUKAN 'cp' UNTUK MENGHEMAT RUANG DISK
-          for artifact in artifacts/openwrt_package_*; do
-            mv "$artifact"/* combined_artifact/ || true
-          done
-          echo "Isi direktori yang akan diunggah:"
-          ls -la combined_artifact/
-
-      - name: Dapatkan Tanggal Saat Ini
-        id: date
-        run: |
-          sudo apt-get install -y locales
-          sudo locale-gen id_ID.UTF-8
-          export LC_TIME=id_ID.UTF-8
-          export TZ="Asia/Jakarta"
-          bulan=$(date +%B)
-          tanggal=$(date +%d)
-          tahun=$(date +%Y)
-          echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
-
-      - name: Unggah aset rilis
+      - name: Publish the release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: combined_artifact/*
-          tag: ${{ steps.date.outputs.release_tag }}
-          file_glob: true
-          overwrite: true
-          body: |
-            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions
-            ### Informasi Firmware OpenWrt
-            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
-            - Informasi Firmware: ${{ inputs.fwinfo }}
+          tag: ${{ needs.create_release.outputs.release_tag }}
+          draft: false
+          prerelease: false
