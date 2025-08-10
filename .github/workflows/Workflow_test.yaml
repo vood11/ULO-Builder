@@ -16,6 +16,7 @@ on:
 
 jobs:
   # JOB 1: Menggunakan 'gh' CLI yang modern untuk membuat rilis
+# JOB 1: Membuat Draf Rilis terlebih dahulu
   create_release:
     name: 1. Create Draft Release
     runs-on: ubuntu-latest
@@ -25,6 +26,10 @@ jobs:
       upload_url: ${{ steps.create_release_step.outputs.upload_url }}
       release_tag: ${{ steps.get_date.outputs.release_tag }}
     steps:
+      # --- TAMBAHKAN LANGKAH INI ---
+      - name: Checkout Repositori
+        uses: actions/checkout@v4
+
       - name: Dapatkan Tanggal dan Buat Tag
         id: get_date
         run: |
@@ -49,10 +54,8 @@ jobs:
           EOF
           )
           
-          # Membuat draf rilis menggunakan gh cli
           gh release create "$RELEASE_TAG" --draft --title "Rilis ULO Autobuild | $RELEASE_TAG" --notes "$RELEASE_BODY"
           
-          # Mendapatkan upload_url dan menyimpannya ke output
           UPLOAD_URL=$(gh release view "$RELEASE_TAG" --json uploadUrl -q .uploadUrl)
           echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
 
