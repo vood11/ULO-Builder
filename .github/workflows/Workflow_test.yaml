@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_choice:
-        description: 'Pilih RootFS yang akan dibuild' # --- PERUBAHAN ---
+        description: 'Pilih RootFS yang akan dibuild'
         required: true
         default: 'all'
         type: choice
@@ -12,11 +12,9 @@ on:
           - all
           - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
           - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
-          # --- PERUBAHAN: Menambahkan list rootfs baru ---
           - OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz
-          - OpenWrt-23.05.5-Mutiara-armsr-armv8-generic-rootfs.tar.gz
       
       device_choice:
         description: 'Pilih Device & Kernel (pilih "all" untuk build semua)'
@@ -96,7 +94,7 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
-            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"},{"name":"OpenWrt-23.05.5-Mutiara-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-Mutiara"}]}' >> $GITHUB_OUTPUT
+            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
@@ -108,10 +106,8 @@ jobs:
               TAG_SUFFIX="OpenWrt-23.05.4-ALKHANET"
             elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="OpenWrt-23.05.5-ALKHANET"
-            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz" ]]; then
-              TAG_SUFFIX="OpenWrt-23.05.5-InsomWRT"
             else
-              TAG_SUFFIX="OpenWrt-23.05.5-Mutiara"
+              TAG_SUFFIX="OpenWrt-23.05.5-InsomWRT"
             fi
             echo "matrix={\"include\":[{\"name\":\"${{ github.event.inputs.rootfs_choice }}\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           fi
@@ -302,5 +298,5 @@ jobs:
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
-            - Blog: dbai-team.com
-            - Grup Discord: https://discord.gg/BXNzaJFTPP
+            - Blog: https://dbai-team.com
+            - Pertanyaan dan diskusi ke grup Discord DBAI: https://discord.gg/BXNzaJFTPP
