@@ -30,6 +30,10 @@ rootfs_repo="armarchindo/rootfs-openwrt"
 
 start_cnt=$SECONDS
 
+# --- PERUBAHAN 1: Menambahkan variabel baru untuk mengontrol download ---
+# Variabel ini akan kita set menjadi 'true' jika flag --skip-rootfs-download digunakan
+SKIP_ROOTFS_DOWNLOAD=false
+
 die() {
     echo -e "ERROR.. = $1"
     exit 1
@@ -74,6 +78,13 @@ check_depedencies() {
 }
 
 custom_rootfs_files() {
+    # --- PERUBAHAN 2: Menambahkan pengecekan di awal fungsi ---
+    # Jika variabel SKIP_ROOTFS_DOWNLOAD adalah true, lewati seluruh fungsi ini.
+    if [ "$SKIP_ROOTFS_DOWNLOAD" = true ]; then
+        echo "Skipping additional ROOTFS download as requested."
+        return
+    fi
+    
     echo -e "Do you want to add additional ROOTFS? (Y/N)"
     local optz=$1
     local opt=""
@@ -831,6 +842,10 @@ while [ "$1" ]; do
             else
                 die "invalid rootsize $rootsize"
             fi
+        ;;
+        # --- PERUBAHAN 3: Menambahkan flag baru untuk melewati download ---
+        --skip-rootfs-download)
+            SKIP_ROOTFS_DOWNLOAD=true
         ;;
         *)
             usage
