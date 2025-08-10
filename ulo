@@ -31,8 +31,7 @@ rootfs_repo="armarchindo/rootfs-openwrt"
 start_cnt=$SECONDS
 
 # --- PERUBAHAN 1: Menambahkan variabel baru untuk mengontrol download ---
-# Variabel ini akan kita set menjadi 'true' jika flag --skip-rootfs-download digunakan
-SKIP_ROOTFS_DOWNLOAD=false
+SKIP_DOWNLOAD=false
 
 die() {
     echo -e "ERROR.. = $1"
@@ -79,12 +78,11 @@ check_depedencies() {
 
 custom_rootfs_files() {
     # --- PERUBAHAN 2: Menambahkan pengecekan di awal fungsi ---
-    # Jika variabel SKIP_ROOTFS_DOWNLOAD adalah true, lewati seluruh fungsi ini.
-    if [ "$SKIP_ROOTFS_DOWNLOAD" = true ]; then
-        echo "Skipping additional ROOTFS download as requested."
+    if [ "$SKIP_DOWNLOAD" = true ]; then
+        echo "Custom ROOTFS download skipped by flag."
         return
     fi
-    
+
     echo -e "Do you want to add additional ROOTFS? (Y/N)"
     local optz=$1
     local opt=""
@@ -749,6 +747,7 @@ Options:
     -m              : set the device       (-m s905x2)
     -r              : set the rootfs files (-r ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)
     -s, --size=SIZE : set size             (-s 1024)
+    --skip-download : Skip additional rootfs download
 
 EOF
 }
@@ -844,8 +843,8 @@ while [ "$1" ]; do
             fi
         ;;
         # --- PERUBAHAN 3: Menambahkan flag baru untuk melewati download ---
-        --skip-rootfs-download)
-            SKIP_ROOTFS_DOWNLOAD=true
+        --skip-download)
+            SKIP_DOWNLOAD=true
         ;;
         *)
             usage
