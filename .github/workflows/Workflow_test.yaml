@@ -155,7 +155,7 @@ jobs:
       - name: Initial Setup & RootFS Download
         run: |
           # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
-          sudo ./ulo -y
+          sudo ./ulo --setup-only
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
