@@ -78,7 +78,7 @@ on:
       fwinfo:
         description: 'Informasi pemilihan versi firmware'
         required: true
-        default: 's905x default adalah B860H V1-V2 jadi tinggal burn (HG680-P dan lainnya tinggal ganti DTB berlaku selanjutnya), s905x2 = HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
+        default: 's905x default adalah B860H V1-V2 jadi tinggal burn (HG680-P dan lainnya tinggal ganti DTB berlaku untuk semua AMLOGIC), s905x2 = HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
         type: string
 
 jobs:
