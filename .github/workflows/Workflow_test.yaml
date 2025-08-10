@@ -100,14 +100,24 @@ jobs:
         run: |
           sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
 
+      - name: Find Firmware File
+        id: find_file
+        run: |
+          FILE_PATH=$(find ${{ runner.workspace }}/out/${{ matrix.config.device }}/ -maxdepth 1 -name "*.img.gz" -type f)
+          if [ -z "$FILE_PATH" ]; then
+            echo "Error: File .img.gz tidak ditemukan di ${{ runner.workspace }}/out/${{ matrix.config.device }}/"
+            exit 1
+          fi
+          echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
+          echo "File ditemukan: $FILE_PATH"
+
       - name: Upload Firmware to Release
-        id: upload_asset
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ./${{ runner.workspace }}/out/${{ matrix.config.device }}/$(ls ${{ runner.workspace }}/out/${{ matrix.config.device }}/ | grep .img.gz)
+          asset_path: ${{ env.FILE_PATH }}
           asset_name: ${{ matrix.config.device }}-${{ matrix.config.kernel }}-${{ matrix.rootfs }}.img.gz
           asset_content_type: application/gzip
 
