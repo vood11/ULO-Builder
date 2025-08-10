@@ -144,13 +144,6 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      - name: Patching ULO
-        run: |
-          if [ -f ./.github/workflows/ULO_Workflow.patch ]; then
-             mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
-             patch -p1 < ./ULO_Workflow.patch
-          fi
-
       # --- PERUBAHAN UTAMA 1: Setup dan Download Satu Kali ---
       - name: Initial Setup & RootFS Download
         run: |
