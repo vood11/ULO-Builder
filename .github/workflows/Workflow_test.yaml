@@ -3,6 +3,7 @@ name: ULO Autobuilder v2 (Flexible Rootfs)
 on:
   workflow_dispatch:
     inputs:
+      # --- PERUBAHAN 1: Input baru untuk memilih RootFS ---
       rootfs_choice:
         description: 'Pilih RootFS yang akan di-build'
         required: true
@@ -24,7 +25,7 @@ on:
         type: string
 
 jobs:
-  # Job untuk menentukan matriks rootfs secara dinamis
+  # Job baru untuk menentukan matriks rootfs secara dinamis
   determine_rootfs:
     name: 1. Determine RootFS
     runs-on: ubuntu-latest
@@ -36,15 +37,18 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
-            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt"}]}' >> $GITHUB_OUTPUT
+            # Membuat matriks dengan 2 entri untuk build semua rootfs
+            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"}]}' >> $GITHUB_OUTPUT
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
+            # Menentukan suffix untuk nama rilis berdasarkan pilihan
             if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
-              TAG_SUFFIX="ImmortalWrt"
+              TAG_SUFFIX="ImmortalWrt-21.02.7-DBAI"
             else
-              TAG_SUFFIX="OpenWrt"
+              TAG_SUFFIX="OpenWrt-23.05.4-A2OS"
             fi
+            # Membuat matriks dengan 1 entri saja
             echo "matrix={\"include\":[{\"name\":\"${{ github.event.inputs.rootfs_choice }}\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           fi
 
@@ -90,11 +94,13 @@ jobs:
 
       - name: Membangun Semua Device untuk RootFS (${{ matrix.name }})
         run: |
+          # Mendefinisikan daftar perangkat sebagai blok teks yang andal
           DEVICE_LIST=$(cat <<EOF
           {"device":"s905x","kernel":"6.1.66-DBAI"}
           EOF
           )
 
+          # Memproses daftar perangkat baris per baris
           echo "$DEVICE_LIST" | while read -r device_config; do
             if [ -z "$device_config" ]; then continue; fi
 
@@ -140,7 +146,6 @@ jobs:
           name: openwrt_package_${{ matrix.tag_suffix }}
           path: artifacts
 
-      # --- PERBAIKAN UTAMA: Mengubah cara menggabungkan artefak ---
       - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
@@ -149,6 +154,7 @@ jobs:
           echo "Isi folder yang akan dirilis:"
           ls -la combined_artifact/
 
+      # --- PERUBAHAN 2: Nama rilis diubah menjadi dinamis ---
       - name: Dapatkan Tanggal Saat Ini
         id: date
         run: |
