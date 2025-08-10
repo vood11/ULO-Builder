@@ -1,9 +1,4 @@
-name: ULO Autobuilder v2
-
-# Referensi Daftar untuk Kemudahan Pengeditan
-# DEVICES: s905x, s905x2, s905x3, s905x4, h313, h5, h6, h616, h618, a64, rk3566, rk3588, dll.
-# KERNELS: 6.1.66-DBAI, 5.4.279, 4.9.337, 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI, 5.10.160-rk35v-dbai
-# ROOTFS_FILES: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz, OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
+name: ULO Autobuilder v2 (Robust Upload)
 
 on:
   workflow_dispatch:
@@ -19,28 +14,60 @@ on:
         default: 'catatan rilis'
         type: string
 
-# Secara otomatis membatalkan build lama jika ada pemicu baru.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  build_ipk:
+  # JOB 1: Membuat Draf Rilis terlebih dahulu
+  create_release:
+    name: 1. Create Draft Release
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-    name: ULO Autobuilder
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_tag: ${{ steps.get_date.outputs.release_tag }}
+    steps:
+      - name: Dapatkan Tanggal dan Buat Tag
+        id: get_date
+        run: |
+          export TZ="Asia/Jakarta"
+          bulan=$(date +%B)
+          tanggal=$(date +%d)
+          tahun=$(date +%Y)
+          echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+
+      - name: Create Draft Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.get_date.outputs.release_tag }}
+          release_name: "Rilis ULO Autobuild | ${{ steps.get_date.outputs.release_tag }}"
+          body: |
+            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
+            Firmware ini dibuild menggunakan Github Actions
+            ### Informasi Firmware OpenWrt
+            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
+            - Informasi Firmware: ${{ inputs.fwinfo }}
+          draft: true
+          prerelease: false
+
+  # JOB 2: Membangun semua firmware secara paralel dan langsung mengunggahnya
+  build_and_upload:
+    name: 2. Build and Upload Firmware
+    needs: create_release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         config:
-          # --- SoC: Amlogic ---
           - { device: s905x, kernel: '6.1.66-DBAI' }
           - { device: s905x, kernel: '4.9.337' }
+          - { device: s905x2, kernel: '6.1.66-DBAI' }
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -53,8 +80,6 @@ jobs:
 
       - name: Checkout Repositori
         uses: actions/checkout@v4
-        with:
-          ref: main
 
       - name: Cache repositori ULO
         uses: actions/cache@v4
@@ -70,93 +95,51 @@ jobs:
           mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
           patch -p1 < ./ULO_Workflow.patch
 
+      - name: Create Controlled Output Directory
+        run: mkdir -p ${{ runner.workspace }}/output_firmware
+
       - name: Membangun OpenWrt
         run: |
-          echo "Memeriksa ketersediaan repositori ULO..."
-          curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }} || \
-          (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
-          echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
-          ls -la ./out/
+          # Menjalankan build dan memaksa output ke direktori yang kita kontrol
+          # PENTING: Ubah '-o' jika skrip Anda menggunakan parameter lain untuk direktori output
+          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }} -o ${{ runner.workspace }}/output_firmware
 
-      - name: Membuat Artefak Paket
-        if: success() || failure()
+      - name: Find Firmware File
+        id: find_file
         run: |
-          mkdir -p ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}
-          cp -rf ./out/${{ matrix.config.device }}/* ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/ || true
+          # Mencari file HANYA di direktori output yang sudah pasti
+          FILE_PATH=$(find ${{ runner.workspace }}/output_firmware/ -maxdepth 1 -name "*.img.gz" -type f)
+          if [ -z "$FILE_PATH" ]; then
+            echo "Error: File .img.gz tidak ditemukan di direktori output_firmware."
+            ls -laR ${{ runner.workspace }}/output_firmware/
+            exit 1
+          fi
+          echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
+          echo "File ditemukan di: $FILE_PATH"
 
-      - name: Mengirim Paket
-        if: success() || failure()
-        uses: actions/upload-artifact@v4
+      - name: Upload Firmware to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
-          path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ${{ env.FILE_PATH }}
+          asset_name: ${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}.img.gz
+          asset_content_type: application/gzip
 
-upload_release:
-    needs: build_ipk
-    if: success()
+  # JOB 3: Mempublikasikan rilis setelah semua build selesai dan diunggah
+  publish_release:
+    name: 3. Publish Release
+    needs: [create_release, build_and_upload]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    if: success()
     steps:
-      - name: Checkout Repositori
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Unduh semua artefak
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      # --- PERUBAHAN 1: Menambahkan 'id' dan menyimpan konten file sebagai output ---
-      - name: Gabungkan artefak dan Buat Daftar File
-        id: body_generator # Memberi ID pada langkah ini
-        run: |
-          mkdir -p combined_artifact
-          for artifact in artifacts/openwrt_package_*; do
-            mv "$artifact"/* combined_artifact/ || true
-          done
-          echo "Membuat daftar file untuk catatan rilis..."
-          echo "## Daftar Firmware yang Berhasil Dibuat" > release_body.txt
-          echo "" >> release_body.txt
-          ls -1 combined_artifact/ >> release_body.txt
-          echo "" >> release_body.txt
-          echo "---" >> release_body.txt
-          echo "### Informasi Build Tambahan" >> release_body.txt
-          echo "- Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}" >> release_body.txt
-          echo "- Catatan: ${{ github.event.inputs.fwinfo }}" >> release_body.txt
-          echo "" >> release_body.txt
-          echo "*Workflow ini berjalan pada: $(date)*" >> release_body.txt
-          
-          # Baris ini membaca isi file dan menyimpannya ke output langkah
-          # Ini adalah sintaks standar GitHub untuk output multi-baris
-          {
-            echo 'body<<EOF'
-            cat release_body.txt
-            echo 'EOF'
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Dapatkan Tanggal Saat Ini
-        id: date
-        run: |
-          sudo apt-get install -y locales
-          sudo locale-gen id_ID.UTF-8
-          export LC_TIME=id_ID.UTF-8
-          export TZ="Asia/Jakarta"
-          bulan=$(date +%B)
-          tanggal=$(date +%d)
-          tahun=$(date +%Y)
-          echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
-
-      # --- PERUBAHAN 2: Menggunakan 'body' dengan output dari langkah sebelumnya ---
-      - name: Unggah aset rilis
+      - name: Publish the release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: combined_artifact/*
-          tag: ${{ steps.date.outputs.release_tag }}
-          file_glob: true
-          overwrite: true
-          # Menggunakan parameter 'body' yang benar dan mengisinya dengan output langkah 'body_generator'
-          body: ${{ steps.body_generator.outputs.body }}
+          tag: ${{ needs.create_release.outputs.release_tag }}
+          draft: false
+          prerelease: false
