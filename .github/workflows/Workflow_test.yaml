@@ -13,7 +13,6 @@ on:
           - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
           - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
       
-      # --- PERUBAHAN: Opsi device dibuat lebih deskriptif dan mudah dibaca ---
       device_choice:
         description: 'Pilih Device & Kernel (pilih "all" untuk build semua)'
         required: true
@@ -80,6 +79,7 @@ on:
         type: string
 
 jobs:
+  # Job untuk menentukan matriks rootfs secara dinamis
   determine_rootfs:
     name: 1. Determine RootFS
     runs-on: ubuntu-latest
@@ -273,7 +273,6 @@ jobs:
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
-          # --- PERUBAHAN: Format tag rilis diperbarui ---
           echo "release_tag=${{ matrix.tag_suffix }}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
       - name: Unggah aset rilis
@@ -286,7 +285,6 @@ jobs:
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            # --- PERUBAHAN: Teks body diperbarui ---
             Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             ### Informasi Firmware OpenWrt
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
