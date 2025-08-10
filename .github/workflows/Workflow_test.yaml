@@ -140,7 +140,7 @@ jobs:
           path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
 
   # Job upload_release tidak perlu diubah
-  upload_release:
+upload_release:
     needs: build_ipk
     if: success()
     permissions:
@@ -160,9 +160,11 @@ jobs:
       - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
+          # GUNAKAN 'mv' BUKAN 'cp' UNTUK MENGHEMAT RUANG DISK
           for artifact in artifacts/openwrt_package_*; do
-            cp -rf "$artifact"/* combined_artifact/ || true
+            mv "$artifact"/* combined_artifact/ || true
           done
+          echo "Isi direktori yang akan diunggah:"
           ls -la combined_artifact/
 
       - name: Dapatkan Tanggal Saat Ini
