@@ -147,7 +147,7 @@ jobs:
       # --- PERUBAHAN UTAMA 1: Setup dan Download Satu Kali ---
       - name: Initial Setup & RootFS Download
         run: |
-          # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
+          # Menjalankan ulo dengan --setup-only HANYA SEKALI untuk setup dan download
           sudo ./ulo --setup-only
 
       - name: Membangun Semua Device (jika 'all' dipilih)
@@ -208,7 +208,6 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            # --- PERUBAHAN UTAMA 2: Memanggil ulo dengan flag spesifik, bukan -y ---
             sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
@@ -228,7 +227,6 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-          # --- PERUBAHAN UTAMA 2: Memanggil ulo dengan flag spesifik, bukan -y ---
           sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           
           echo "Membuat artefak untuk $DEVICE..."
