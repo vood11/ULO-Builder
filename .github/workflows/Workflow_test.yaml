@@ -20,7 +20,7 @@ jobs:
     name: 1. Create Draft Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Diperlukan untuk membuat rilis
+      contents: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       release_tag: ${{ steps.get_date.outputs.release_tag }}
@@ -54,18 +54,16 @@ jobs:
   # JOB 2: Membangun semua firmware secara paralel dan langsung mengunggahnya
   build_and_upload:
     name: 2. Build and Upload Firmware
-    needs: create_release # Menunggu Job 1 selesai
+    needs: create_release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Diperlukan untuk upload aset ke rilis
+      contents: write
     strategy:
       fail-fast: false
       matrix:
         config:
-          # --- Daftar lengkap perangkat dan kernel Anda di sini ---
           - { device: s905x, kernel: '6.1.66-DBAI' }
           - { device: s905x, kernel: '4.9.337' }
-          - { device: s905x2, kernel: '6.1.66-DBAI' }
         rootfs:
           - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
           - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
@@ -100,25 +98,38 @@ jobs:
         run: |
           sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
 
-      # --- [LANGKAH DEBUGGING BARU] ---
-      # Langkah ini untuk melihat isi direktori kerja setelah build.
-      # Ini akan membantu kita tahu apakah direktori 'out' benar-benar dibuat.
       - name: Debug Output Directory
-        if: always() # Selalu jalankan langkah ini, bahkan jika langkah sebelumnya gagal
+        if: always()
         run: |
-          echo "Listing workspace contents to find the 'out' directory..."
+          echo "Listing workspace contents: ${{ runner.workspace }}"
           ls -laR ${{ runner.workspace }}
+          echo "Listing root directory contents..."
+          sudo ls -laR /root
 
       - name: Find Firmware File
         id: find_file
         run: |
-          FILE_PATH=$(find ${{ runner.workspace }}/out/${{ matrix.config.device }}/ -maxdepth 1 -name "*.img.gz" -type f)
+          # Cari file di beberapa lokasi umum, termasuk di direktori root jika sudo mengubah path
+          SEARCH_PATHS=("${{ runner.workspace }}/out/${{ matrix.config.device }}" "/root/out/${{ matrix.config.device }}")
+          FILE_PATH=""
+          for path in "${SEARCH_PATHS[@]}"; do
+            if [ -d "$path" ]; then
+              # Gunakan sudo untuk find agar bisa membaca direktori milik root
+              found_file=$(sudo find "$path" -maxdepth 1 -name "*.img.gz" -type f)
+              if [ -n "$found_file" ]; then
+                FILE_PATH=$found_file
+                break
+              fi
+            fi
+          done
+          
           if [ -z "$FILE_PATH" ]; then
-            echo "Error: File .img.gz tidak ditemukan di ${{ runner.workspace }}/out/${{ matrix.config.device }}/"
+            echo "Error: File .img.gz tidak ditemukan di lokasi manapun."
             exit 1
           fi
+          
           echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
-          echo "File ditemukan: $FILE_PATH"
+          echo "File ditemukan di: $FILE_PATH"
 
       - name: Upload Firmware to Release
         uses: actions/upload-release-asset@v1
@@ -127,7 +138,7 @@ jobs:
         with:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ${{ env.FILE_PATH }}
-          asset_name: ${{ matrix.config.device }}-${{ matrix.config.kernel }}-${{ matrix.rootfs }}.img.gz
+          asset_name: ${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}.img.gz
           asset_content_type: application/gzip
 
   # JOB 3: Mempublikasikan rilis setelah semua build selesai dan diunggah
@@ -137,7 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: success() # Hanya berjalan jika semua job sebelumnya sukses
+    if: success()
     steps:
       - name: Publish the release
         uses: svenstaro/upload-release-action@v2
