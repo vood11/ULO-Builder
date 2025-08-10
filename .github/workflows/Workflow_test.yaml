@@ -1,4 +1,9 @@
-name: ULO Autobuilder v2 (Final, Controlled Directory)
+name: ULO Autobuilder v2
+
+# Referensi Daftar untuk Kemudahan Pengeditan
+# DEVICES: s905x, s905x2, s905x3, s905x4, h313, h5, h6, h616, h618, a64, rk3566, rk3588, dll.
+# KERNELS: 6.1.66-DBAI, 5.4.279, 4.9.337, 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI, 5.10.160-rk35v-dbai
+# ROOTFS_FILES: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz, OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
 
 on:
   workflow_dispatch:
@@ -15,132 +20,124 @@ on:
         type: string
 
 jobs:
-  # JOB 1: Membuat Draf Rilis
-  create_release:
-    name: 1. Create Draft Release
-    runs-on: ubuntu-latest
+  build_ipk:
     permissions:
-      contents: write 
-    outputs:
-      upload_url: ${{ steps.create_release_step.outputs.upload_url }}
-      release_tag: ${{ steps.get_date.outputs.release_tag }}
+      contents: write
+    name: ULO Autobuilder
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # SUMBU 1: Pasangan terikat antara device dan kernel.
+        config:
+          # --- SoC: Amlogic ---
+          - { device: s905x, kernel: '6.1.66-DBAI' }
+
+        # SUMBU 2: Variabel independen 'rootfs'.
+        rootfs:
+          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
+          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
+
+    steps:
+      - name: Pembersihan dan Instalasi Prasyarat
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get update
+          sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
+
+      - name: Checkout Repositori
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Cache repositori ULO
+        uses: actions/cache@v4
+        with:
+          path: |
+            core/
+            rootfs/
+            device/
+          key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
+
+      - name: Patching ULO
+        run: |
+          mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
+          patch -p1 < ./ULO_Workflow.patch
+
+      - name: Membangun OpenWrt
+        run: |
+          echo "Memeriksa ketersediaan repositori ULO..."
+          curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
+          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }} || \
+          (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
+          echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
+          ls -la ./out/
+
+      - name: Membuat Artefak Paket
+        if: success() || failure()
+        run: |
+          mkdir -p ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}
+          cp -rf ./out/${{ matrix.config.device }}/* ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/ || true
+
+      - name: Mengirim Paket
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
+          path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
+
+  # Job upload_release tidak perlu diubah
+  upload_release:
+    needs: build_ipk
+    if: success()
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repositori
         uses: actions/checkout@v4
+        with:
+          ref: main
 
-      - name: Dapatkan Tanggal dan Buat Tag
-        id: get_date
+      - name: Unduh semua artefak
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Gabungkan artefak
         run: |
+          mkdir -p combined_artifact
+          for artifact in artifacts/openwrt_package_*; do
+            mv "$artifact"/* combined_artifact/ || true
+          done
+          ls -la combined_artifact/
+
+      - name: Dapatkan Tanggal Saat Ini
+        id: date
+        run: |
+          sudo apt-get install -y locales
+          sudo locale-gen id_ID.UTF-8
+          export LC_TIME=id_ID.UTF-8
           export TZ="Asia/Jakarta"
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
           echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
-      - name: Create Draft Release via GH CLI
-        id: create_release_step
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          RELEASE_TAG="${{ steps.get_date.outputs.release_tag }}"
-          RELEASE_BODY=$(cat <<EOF
-          ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-          Firmware ini dibuild menggunakan Github Actions
-          ### Informasi Firmware OpenWrt
-          - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
-          - Informasi Firmware: ${{ inputs.fwinfo }}
-          EOF
-          )
-          
-          gh release create "$RELEASE_TAG" --draft --title "Rilis ULO Autobuild | $RELEASE_TAG" --notes "$RELEASE_BODY"
-          
-          UPLOAD_URL=$(gh release view "$RELEASE_TAG" --json uploadUrl -q .uploadUrl)
-          echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
-
-  # JOB 2: Membangun firmware dengan metode direktori kerja yang terkontrol
-  build_and_upload:
-    name: 2. Build and Upload Firmware
-    needs: create_release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          # --- SoC: Amlogic ---
-          - { device: s905x, kernel: '6.1.66-DBAI' }
-        rootfs:
-          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-    steps:
-      - name: Pembersihan dan Instalasi Prasyarat
-        run: |
-          sudo -E apt-get update
-          sudo -E apt-get -y install git
-      - name: Checkout Repositori
-        uses: actions/checkout@v4
-      - name: Patching ULO
-        run: |
-          if [ -f ./.github/workflows/ULO_Workflow.patch ]; then
-            mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
-            patch -p1 < ./ULO_Workflow.patch
-          fi
-
-      # --- PERUBAHAN UTAMA DIMULAI DI SINI ---
-      - name: Create Dedicated Output Directory
-        run: mkdir -p ${{ runner.workspace }}/output_${{ matrix.config.device }}
-      
-      - name: Membangun OpenWrt
-        # Memaksa langkah ini untuk berjalan di dalam direktori yang baru kita buat
-        working-directory: ${{ runner.workspace }}/output_${{ matrix.config.device }}
-        run: |
-          # Perhatikan penggunaan ../ulo untuk memanggil skrip dari direktori induk
-          sudo ../ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
-
-      - name: Find Firmware File in Controlled Directory
-        run: |
-          # Karena kita mengontrol direktori kerja, path output sekarang 100% pasti
-          SEARCH_DIR="${{ runner.workspace }}/output_${{ matrix.config.device }}/out/${{ matrix.config.device }}"
-          
-          echo "Mencari file di direktori pasti: $SEARCH_DIR"
-          
-          FILE_PATH=$(sudo find "$SEARCH_DIR" -maxdepth 1 -name "*.img.gz" -type f)
-          
-          if [ -z "$FILE_PATH" ]; then
-            echo "FATAL ERROR: File .img.gz tidak ditemukan di direktori yang diharapkan."
-            echo "--- Isi Direktori Kerja Build ---"
-            ls -laR ${{ runner.workspace }}/output_${{ matrix.config.device }}
-            echo "----------------------------"
-            exit 1
-          fi
-          
-          echo "FILE_PATH=$FILE_PATH" >> $GITHUB_ENV
-          echo "File ditemukan di: $FILE_PATH"
-
-      - name: Upload Firmware to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Unggah aset rilis
+        uses: svenstaro/upload-release-action@v2
         with:
-          upload_url: ${{ needs.create_release.outputs.upload_url }}
-          asset_path: ${{ env.FILE_PATH }}
-          asset_name: ${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}.img.gz
-          asset_content_type: application/gzip
-
-  # JOB 3: Mempublikasikan rilis
-  publish_release:
-    name: 3. Publish Release
-    needs: [create_release, build_and_upload]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    if: success()
-    steps:
-      - name: Checkout Repositori
-        uses: actions/checkout@v4
-        
-      - name: Publish the release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit ${{ needs.create_release.outputs.release_tag }} --draft=false
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: combined_artifact/*
+          tag: ${{ steps.date.outputs.release_tag }}
+          file_glob: true
+          overwrite: true
+          body: |
+            ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
+            Firmware ini dibuild menggunakan Github Actions
+            ### Informasi Firmware OpenWrt
+            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
+            - Informasi Firmware: ${{ inputs.fwinfo }}
