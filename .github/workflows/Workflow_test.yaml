@@ -1,4 +1,4 @@
-name: ULO Autobuilder v2 (Final, Fast & Targeted)
+name: ULO Autobuilder v2 (Final, Controlled Directory)
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
           UPLOAD_URL=$(gh release view "$RELEASE_TAG" --json uploadUrl -q .uploadUrl)
           echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
 
-  # JOB 2: Membangun firmware dengan pencarian file yang cepat dan tertarget
+  # JOB 2: Membangun firmware dengan metode direktori kerja yang terkontrol
   build_and_upload:
     name: 2. Build and Upload Firmware
     needs: create_release
@@ -86,28 +86,32 @@ jobs:
             mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
             patch -p1 < ./ULO_Workflow.patch
           fi
+
+      # --- PERUBAHAN UTAMA DIMULAI DI SINI ---
+      - name: Create Dedicated Output Directory
+        run: mkdir -p ${{ runner.workspace }}/output_${{ matrix.config.device }}
       
       - name: Membangun OpenWrt
+        # Memaksa langkah ini untuk berjalan di dalam direktori yang baru kita buat
+        working-directory: ${{ runner.workspace }}/output_${{ matrix.config.device }}
         run: |
-          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
+          # Perhatikan penggunaan ../ulo untuk memanggil skrip dari direktori induk
+          sudo ../ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }}
 
-      # --- PERUBAHAN UTAMA: PENCARIAN FILE KEMBALI CEPAT DAN TERTARGET ---
-      - name: Find Firmware File
-        id: find_file
+      - name: Find Firmware File in Controlled Directory
         run: |
-          # Langkah ini mencari HANYA di direktori output yang sudah Anda konfirmasi.
-          SEARCH_DIR="${{ runner.workspace }}/out/${{ matrix.config.device }}"
+          # Karena kita mengontrol direktori kerja, path output sekarang 100% pasti
+          SEARCH_DIR="${{ runner.workspace }}/output_${{ matrix.config.device }}/out/${{ matrix.config.device }}"
           
-          echo "Mencari file di direktori: $SEARCH_DIR"
+          echo "Mencari file di direktori pasti: $SEARCH_DIR"
           
-          # 'find' di sini akan berjalan instan. sudo tetap dipakai untuk jaga-jaga masalah izin file.
           FILE_PATH=$(sudo find "$SEARCH_DIR" -maxdepth 1 -name "*.img.gz" -type f)
           
           if [ -z "$FILE_PATH" ]; then
-            echo "FATAL ERROR: File .img.gz tidak ditemukan di direktori yang diharapkan: $SEARCH_DIR"
-            echo "--- Isi Direktori (jika ada) ---"
-            ls -laR "$SEARCH_DIR" || echo "Direktori $SEARCH_DIR tidak bisa diakses atau tidak ada."
-            echo "--------------------------------"
+            echo "FATAL ERROR: File .img.gz tidak ditemukan di direktori yang diharapkan."
+            echo "--- Isi Direktori Kerja Build ---"
+            ls -laR ${{ runner.workspace }}/output_${{ matrix.config.device }}
+            echo "----------------------------"
             exit 1
           fi
           
