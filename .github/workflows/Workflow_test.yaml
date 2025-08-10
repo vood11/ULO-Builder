@@ -1,13 +1,17 @@
-name: ULO Autobuilder v2
-
-# Referensi Daftar untuk Kemudahan Pengeditan
-# DEVICES: s905x, s905x2, s905x3, s905x4, h313, h5, h6, h616, h618, a64, rk3566, rk3588, dll.
-# KERNELS: 6.1.66-DBAI, 5.4.279, 4.9.337, 6.1.104-AW64-DBAI, 6.1.31-AW64-DBAI, 5.10.160-rk35v-dbai
-# ROOTFS_FILES: ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz, OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
+name: ULO Autobuilder v2 (Flexible Rootfs)
 
 on:
   workflow_dispatch:
     inputs:
+      rootfs_choice:
+        description: 'Pilih RootFS yang akan di-build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
+          - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
@@ -20,24 +24,38 @@ on:
         type: string
 
 jobs:
+  # Job baru untuk menentukan matriks rootfs secara dinamis
+  determine_rootfs:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Determine RootFS build matrix
+        id: set-matrix
+        run: |
+          if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
+            echo "Building all RootFS versions."
+            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt"}]}' >> $GITHUB_OUTPUT
+          else
+            echo "Building selected RootFS: ${{ github.event.inputs.rootfs_choice }}"
+            TAG_SUFFIX=""
+            if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="ImmortalWrt"
+            else
+              TAG_SUFFIX="OpenWrt"
+            fi
+            echo "matrix={\"include\":[{\"name\":\"${{ github.event.inputs.rootfs_choice }}\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
+          fi
+
   build_ipk:
+    needs: determine_rootfs
     permissions:
       contents: write
     name: ULO Autobuilder
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        # SUMBU 1: Pasangan terikat antara device dan kernel.
-        config:
-          # --- SoC: Amlogic ---
-          - { device: s905x, kernel: '6.1.66-DBAI' }
-
-        # SUMBU 2: Variabel independen 'rootfs'.
-        rootfs:
-          - 'ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz'
-          - 'OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz'
-
+      matrix: ${{ fromJson(needs.determine_rootfs.outputs.matrix) }}
     steps:
       - name: Pembersihan dan Instalasi Prasyarat
         env:
@@ -64,55 +82,62 @@ jobs:
 
       - name: Patching ULO
         run: |
-          mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
-          patch -p1 < ./ULO_Workflow.patch
+          if [ -f ./.github/workflows/ULO_Workflow.patch ]; then
+             mv ./.github/workflows/ULO_Workflow.patch ./ULO_Workflow.patch
+             patch -p1 < ./ULO_Workflow.patch
+          fi
 
-      - name: Membangun OpenWrt
+      - name: Membangun Semua Device untuk RootFS (${{ matrix.name }})
         run: |
-          echo "Memeriksa ketersediaan repositori ULO..."
-          curl -I https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main
-          sudo ./ulo -y -m ${{ matrix.config.device }} -r ${{ matrix.rootfs }} -k ${{ matrix.config.kernel }} -s ${{ inputs.rootfs_size }} || \
-          (sleep 5 && sudo aria2c --max-tries=3 --retry-wait=5 https://codeload.github.com/armarchindo/ULO-repository/zip/refs/heads/main)
-          echo "Pembangunan selesai atau gagal. Memeriksa direktori output..."
-          ls -la ./out/
-
-      - name: Membuat Artefak Paket
-        if: success() || failure()
-        run: |
-          mkdir -p ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}
-          cp -rf ./out/${{ matrix.config.device }}/* ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/ || true
+          for device_config in \
+            '{"device":"s905x","kernel":"6.1.66-DBAI"}' \
+            '{"device":"s905x","kernel":"4.9.337"}' \
+          do
+            DEVICE=$(echo $device_config | jq -r .device)
+            KERNEL=$(echo $device_config | jq -r .kernel)
+            
+            echo "=========================================================="
+            echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
+            echo "=========================================================="
+            
+            sudo ./ulo -y -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            
+            echo "Membuat artefak untuk $DEVICE..."
+            mkdir -p ./artifact/"$DEVICE"
+            cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
+          done
 
       - name: Mengirim Paket
-        if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: openwrt_package_${{ matrix.config.device }}_${{ matrix.config.kernel }}_${{ matrix.rootfs }}
-          path: ./artifact/${{ matrix.config.device }}/${{ matrix.config.kernel }}-${{ matrix.rootfs }}/*
+          name: openwrt_package_${{ matrix.tag_suffix }}
+          path: ./artifact/
 
-  # Job upload_release tidak perlu diubah
   upload_release:
     needs: build_ipk
     if: success()
     permissions:
       contents: write
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.build_ipk.jobs.determine_rootfs.outputs.matrix) }}
     steps:
       - name: Checkout Repositori
         uses: actions/checkout@v4
         with:
           ref: main
 
-      - name: Unduh semua artefak
+      - name: Unduh artefak untuk ${{ matrix.tag_suffix }}
         uses: actions/download-artifact@v4
         with:
+          name: openwrt_package_${{ matrix.tag_suffix }}
           path: artifacts
 
       - name: Gabungkan artefak
         run: |
           mkdir -p combined_artifact
-          for artifact in artifacts/openwrt_package_*; do
-            mv "$artifact"/* combined_artifact/ || true
-          done
+          cp -rf ./artifacts/* ./combined_artifact/ || echo "Tidak ada artefak untuk digabungkan."
           ls -la combined_artifact/
 
       - name: Dapatkan Tanggal Saat Ini
@@ -125,7 +150,7 @@ jobs:
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
-          echo "release_tag=ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+          echo "release_tag=ULO-RELEASE_${{ matrix.tag_suffix }}_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
@@ -137,7 +162,7 @@ jobs:
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
-            Firmware ini dibuild menggunakan Github Actions
+            Firmware ini dibuild menggunakan Github Actions untuk RootFS: ${{ matrix.tag_suffix }}
             ### Informasi Firmware OpenWrt
-            - Ukuran ROOTFS: ${{ inputs.rootfs_size }}
-            - Informasi Firmware: ${{ inputs.fwinfo }}
+            - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
+            - Informasi Firmware: ${{ github.event.inputs.fwinfo }}
