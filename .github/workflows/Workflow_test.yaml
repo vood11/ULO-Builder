@@ -168,9 +168,10 @@ jobs:
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
         run: |
-          echo "Downloading custom RootFS from ${{ github.event.inputs.custom_rootfs_url }}"
-          mkdir -p rootfs
-          wget -q -O "rootfs/${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
+          # <-- PERUBAHAN: Mengganti wget dengan aria2c untuk download lebih cepat -->
+          echo "Downloading custom RootFS from ${{ github.event.inputs.custom_rootfs_url }} using aria2c..."
+          sudo mkdir -p rootfs
+          sudo aria2c -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
           echo "Download complete. File saved as rootfs/${{ matrix.name }}"
 
       - name: Membangun Semua Device (jika 'all' dipilih)
