@@ -144,12 +144,11 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      # --- PERUBAHAN 1: Setup dan Download Satu Kali ---
+      # --- PERUBAHAN UTAMA 1: Setup dan Download Satu Kali ---
       - name: Initial Setup & RootFS Download
         run: |
-          # Menjalankan ulo dengan --setup-only HANYA SEKALI untuk setup dan download.
-          # Pastikan skrip 'ulo' Anda mengenali flag ini.
-          sudo ./ulo --setup-only
+          # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
+          sudo ./ulo -y
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
