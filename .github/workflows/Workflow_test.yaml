@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_choice:
-        description: 'Pilih RootFS yang akan dibuild'
+        # <-- PERUBAHAN: Deskripsi diubah untuk mencakup opsi custom -->
+        description: 'Pilih RootFS yang akan dibuild atau pilih "custom" untuk menggunakan URL'
         required: true
         default: 'all'
         type: choice
@@ -15,7 +16,14 @@ on:
           - OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz
+          - custom  # <-- PERUBAHAN: Opsi 'custom' ditambahkan -->
       
+      # <-- PERUBAHAN: Input baru untuk URL kustom ditambahkan -->
+      custom_rootfs_url:
+        description: 'URL download RootFS (HANYA ISI JIKA memilih "custom" di atas)'
+        required: false
+        type: string
+
       device_choice:
         description: 'Pilih Device & Kernel (pilih "all" untuk build semua)'
         required: true
@@ -78,7 +86,7 @@ on:
       fwinfo:
         description: 'Informasi pemilihan versi firmware'
         required: true
-        default: 's905x default adalah B860H V1-V2 jadi tinggal burn (HG680-P dan lainnya tinggal ganti DTB berlaku untuk semua AMLOGIC), s905x2 = HG680-FJ, s905x3=X96 Air Gigabit/WECHIP V9, s905x4=Akari AX810/AT01, device selain AMLOGIC hanya kompatibel sesuai title firmware'
+        default: 's905x default adalah untuk STB B860H V1-V2/Dens TV V2Y jadi tinggal pakai setelah burning (HG680-P, Dens TV V2X dan type lain yang memakai SOC AMLOGIC s905x perlu ganti DTB berlaku untuk semua STB AMLOGIC), s905x2=HG680-FJ (B860H V5, Transvision Gen2, CYBORG 001/MNC Playbox perlu ganti DTB), s905x3=X96 Air Gigabit/WECHIP V9 (X96 MAX +, HK1 BOX, H96 MAX X3, dll jugsa sama perlu ganti DTB), s905x4=Akari AX810/Advan AT01 (wifi on gunakan kernel 5.4.x contoh 5.4.279 lengkap driver wifinya), device selain AMLOGIC hanya kompatibel sesuai title firmware'
         type: string
 
 jobs:
@@ -91,9 +99,20 @@ jobs:
       - name: Determine RootFS build matrix
         id: set-matrix
         run: |
+          # <-- PERUBAHAN: Logika diperbarui untuk menangani 'all', 'custom', dan pilihan tunggal -->
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
             echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
+            CUSTOM_URL="${{ github.event.inputs.custom_rootfs_url }}"
+            if [[ -z "$CUSTOM_URL" ]]; then
+              echo "Error: Opsi 'custom' dipilih tetapi tidak ada URL yang diberikan."
+              exit 1
+            fi
+            FILENAME=$(basename "$CUSTOM_URL")
+            TAG_SUFFIX="Custom-$(echo $FILENAME | sed 's/\.tar\.gz$//')"
+            echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
+            echo "matrix={\"include\":[{\"name\":\"$FILENAME\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
@@ -144,11 +163,20 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      # --- PERUBAHAN UTAMA 1: Setup dan Download Satu Kali ---
+															   
       - name: Initial Setup & RootFS Download
         run: |
           # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
           sudo ./ulo -y
+      
+      # <-- PERUBAHAN: Langkah baru untuk mengunduh RootFS kustom -->
+      - name: Download Custom RootFS (if selected)
+        if: github.event.inputs.rootfs_choice == 'custom'
+        run: |
+          echo "Downloading custom RootFS from ${{ github.event.inputs.custom_rootfs_url }}"
+          mkdir -p rootfs
+          wget -q -O "rootfs/${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
+          echo "Download complete. File saved as rootfs/${{ matrix.name }}"
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
@@ -208,7 +236,7 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            # --- PERUBAHAN UTAMA 2: Memanggil ulo dengan flag spesifik, bukan -y ---
+																					 
             sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
@@ -228,7 +256,7 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-          # --- PERUBAHAN UTAMA 2: Memanggil ulo dengan flag spesifik, bukan -y ---
+																				   
           sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           
           echo "Membuat artefak untuk $DEVICE..."
