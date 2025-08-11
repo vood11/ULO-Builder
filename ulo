@@ -88,14 +88,14 @@ custom_rootfs_files() {
     fi
     if [ "$opt" = "y" ] || [ "$opt" = "Y" ]; then
         echo -e "Downloading ROOTFS Files..."
-        local local_cnt=0
+        local cnt=0
         local json_data=`curl -s $long_url`
         local list_url=`echo $json_data | jq '.[].assets[].browser_download_url' | tr -d '"'`
         local list_name=`echo $json_data | jq '.[].tag_name' | tr -d '"'`
         local list_files=`echo $json_data | jq '.[].assets[].name' | tr -d '"'`
         for names in ${list_name[*]}; do
-            ((local_cnt++))
-            echo -e "$local_cnt. $names"
+            ((cnt++))
+            echo -e "$cnt. $names"
         done
         for urls in ${list_url[*]}; do
             aria2c -d rootfs "$urls"
@@ -149,13 +149,13 @@ download_requirement_files() {
         rm -r $tmp_path
     fi
     echo -e "All required files are present." | $lolcat -a -d 1
-    if [ "$setup_only" != true ]; then
-        custom_rootfs_files
-    fi
+    custom_rootfs_files
     find_devices
     find_rootfs
     find_kernels
 }
+
+check_depedencies
 
 cleaning() {
     for x in $(lsblk | grep $(pwd) | grep -oE 'loop[0-9]+' | sort | uniq); do
@@ -246,7 +246,6 @@ choose_rootfs() {
     echo -e "${firmware}\n" | $lolcat -a -d 5
     echo $firmware > $rootfs_path/rootfs.log
 }
-
 choose_kernel() {
     local i=0
     local filtered_kernels=()
@@ -276,7 +275,6 @@ choose_option() {
     local options=$1
     local len=$2
     local optx=$3
-    local opt=0
     local cnt=0
     
     if [ ! $optx ]; then
@@ -305,7 +303,7 @@ choose_option() {
         echo "Select Number:"  | $lolcat -a -d 5 
         read -p "" opt 
         if [ ! "$opt" ]; then
-            opt=1  # Default to first option if empty
+            opt=0
             break
         elif [[ "$opt" -ge 1 && "$opt" -le "$len" ]] 2>/dev/null; then
             ((opt--))
@@ -460,6 +458,7 @@ make_image() {
     txtloader=""
     if [ $is_amlogic = true ]; then
         # AMLOGIC DEVICES BOOTLOADER
+
         loader="./core/loader/amlogic/${device}.bin"
         txtloader="${device}.bin"
         dd if=$loader of=$loop bs=1 count=444 conv=fsync 2>/dev/null
@@ -468,6 +467,7 @@ make_image() {
 
     if [ $is_allwinner = true ]; then
         # ALLWINNER DEVICES BOOTLOADER
+
         loader="./core/loader/allwinner/u-boot-sunxi-with-spl-${device}.bin"
         loader1="./core/loader/allwinner/u-boot-mainline-${device}.bin"
 
@@ -484,6 +484,7 @@ make_image() {
     
     if [ $is_rockchip = true ]; then
         # ROCKCHIP DEVICES BOOTLOADER
+
         loader="./core/loader/rockchip/idbloader-${device}.img"
         loader1="./core/loader/rockchip/u-boot-${device}.itb"
         loader2="./core/loader/rockchip/trust-${device}.bin"
@@ -555,9 +556,11 @@ lain_lain() {
         elif [ $is_allwinner = true ]; then
             sed -i 's/ttyAMA0/tty1/' $path/etc/inittab
             sed -i 's/ttyS0/ttyS2/' $path/etc/inittab
+
         elif [ $is_rockchip = true ]; then
             sed -i 's/ttyAMA0/tty1/' $path/etc/inittab
             sed -i 's/ttyS0/ttyS2/' $path/etc/inittab
+            
         fi
 
         if ! grep -q 'ulimit -n' $path/etc/init.d/boot; then
@@ -730,15 +733,15 @@ Options:
     -c, --clean     : Cleaning old cache
     -u, --update    : Update Kernel, ROOTFS, and Firmware files from ULO-Repository
                       (Will Destroy your old Kernel, ROOTFS, and Firmware files!!!)
-    -y, --yes       : Custom ROOTFS Download
-    -k              : Set the kernel       (-k 5.9.16)
-    -m              : Set the device       (-m s905x2)
-    -r              : Set the rootfs files (-r ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)
-    -s, --size=SIZE : Set size             (-s 1024)
-    --setup-only    : Run setup only (check dependencies, files, and parameters) and exit without building
+    -y  --yes       : Custom ROOTFS Download.
+    -k              : set the kernel       (-k 5.9.16)
+    -m              : set the device       (-m s905x2)
+    -r              : set the rootfs files (-r ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz)
+    -s, --size=SIZE : set size             (-s 1024)
 
 EOF
 }
+
 
 echo -e "
 ======================================================================
@@ -751,42 +754,37 @@ echo -e "
 " | $lolcat -a -d 5
 [ $(id -u) = 0 ] || die "please run this script as root"
 
-# Inisialisasi setup_only
-setup_only=false
-
-check_depedencies
 check_requirement_files
 
 while [ "$1" ]; do
     case "$1" in
         -y|--yes)
             custom_rootfs_files "yes"
-            exit 0
+            exit
         ;;
         -h|--help)
             usage
-            exit 0
+            exit
         ;;
         -c|--clean)
             cleaning
             echo -e "Cleaning done"
-            exit 0
+            exit
         ;;
         -u|--update)
             echo -e "Updating Kernel, ROOTFS, and Firmware files from ULO-Repository"
             download_requirement_files true
-            exit 0
+            exit
         ;;
         -d|--default)
             : ${device:="all"}
             : ${firmware:=${rootfs[0]}}
             : ${kernel:="all"}
             : ${rootsize:=$minsize}
-            shift
         ;;
         -e)
             extract_kernel
-            exit 0
+            exit
         ;;
         -k)
             kernel=$2
@@ -824,7 +822,7 @@ while [ "$1" ]; do
         ;;
         --mount)
             mount_image
-            exit 0
+            exit
         ;;
         -s|--size)
             rootsize=$2
@@ -834,44 +832,34 @@ while [ "$1" ]; do
                 die "invalid rootsize $rootsize"
             fi
         ;;
-        --setup-only)
-            setup_only=true
-            shift
-        ;;
         *)
             usage
             die "invalid option $1"
         ;;
     esac
+    shift
 done
 
-# Perbaikan: Berhenti setelah setup jika --setup-only diaktifkan
-if [ "$setup_only" = true ]; then
-    # Tampilkan parameter jika ada
-    [ "$device" ] && echo -en "device\t\t=>  " && echo -e "${devices[@]}" | sed 's/ /, /g'
-    [ "$firmware" ] && echo -en "rootfs\t\t=>  " && echo -e "${firmware[@]}" | sed 's/ /, /g'
-    [ "$kernel" ] && echo -en "kernel\t\t=>  " && echo -e "${kernels[@]}" | sed 's/ /, /g'
-    [ "$rootsize" ] && echo -e "rootsize\t=>  $rootsize"
-    echo -e "Setup selesai. Keluar tanpa menjalankan build." | $lolcat -a -d 5
-    exit 0
-fi
+[ "$device" ] && {
+    echo -en "device\t\t=>  "
+    echo -e "${devices[@]}" | sed 's/ /, /g'
+}
+[ "$firmware" ] && {
+    echo -en "rootfs\t\t=>  "
+    echo -e "${firmware[@]}" | sed 's/ /, /g'
+}
+[ "$kernel" ] && {
+    echo -en "kernel\t\t=>  "
+    echo -e "${kernels[@]}" | sed 's/ /, /g'
+}
+[ "$rootsize" ] && echo -e "rootsize\t=>  $rootsize"
+[ "$device" ] || [ "$firmware" ] || [ "$kernel" ] || [ "$rootsize" ] && echo 
 
-# Pilih parameter jika tidak diberikan
 [ "$device" ] || choose_device
 [ "$firmware" ] || choose_rootfs
 [ "$kernel" ] || choose_kernel
 [ "$rootsize" ] || set_rootsize
 
-# Prompt konfirmasi hanya jika interaktif
-if [[ -z "$device" || -z "$firmware" || -z "$kernel" || -z "$rootsize" ]]; then
-    read -p "Setup selesai. Lanjutkan ke proses build? (Y/N): " continue_build
-    if [[ ! "$continue_build" =~ ^[Yy]$ ]]; then
-        echo -e "Keluar setelah setup." | $lolcat -a -d 5
-        exit 0
-    fi
-fi
-
-# Lanjutkan ke proses build
 unpack_openwrt
 echo "Building on progress..." | $lolcat -a -d 5
 
