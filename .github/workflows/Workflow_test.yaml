@@ -82,6 +82,7 @@ on:
         type: string
 
 jobs:
+			   
   determine_rootfs:
     name: 1. Determine RootFS
     runs-on: ubuntu-latest
@@ -144,10 +145,17 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      # --- PERUBAHAN UTAMA 1: Setup dan Download Satu Kali ---
+						  
+			  
+																
+																		   
+											 
+			
+
+      # --- PERUBAHAN 1: Setup dan Download Satu Kali ---
       - name: Initial Setup & RootFS Download
         run: |
-          # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
+          # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download.
           sudo ./ulo -y
 
       - name: Membangun Semua Device (jika 'all' dipilih)
@@ -219,7 +227,9 @@ jobs:
         if: github.event.inputs.device_choice != 'all'
         run: |
           CHOICE="${{ github.event.inputs.device_choice }}"
+				  
           DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
+				 
           KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
           
           echo "=========================================================="
