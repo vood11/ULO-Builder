@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
     inputs:
       rootfs_choice:
-        # <-- PERUBAHAN: Deskripsi diubah untuk mencakup opsi custom -->
         description: 'Pilih RootFS yang akan dibuild atau pilih "custom" untuk menggunakan URL'
         required: true
         default: 'all'
@@ -16,9 +15,8 @@ on:
           - OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz
-          - custom  # <-- PERUBAHAN: Opsi 'custom' ditambahkan -->
+          - custom
       
-      # <-- PERUBAHAN: Input baru untuk URL kustom ditambahkan -->
       custom_rootfs_url:
         description: 'URL download RootFS (HANYA ISI JIKA memilih "custom" di atas)'
         required: false
@@ -99,7 +97,6 @@ jobs:
       - name: Determine RootFS build matrix
         id: set-matrix
         run: |
-          # <-- PERUBAHAN: Logika diperbarui untuk menangani 'all', 'custom', dan pilihan tunggal -->
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
             echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
@@ -163,13 +160,11 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-															   
       - name: Initial Setup & RootFS Download
         run: |
           # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
           sudo ./ulo -y
       
-      # <-- PERUBAHAN: Langkah baru untuk mengunduh RootFS kustom -->
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
         run: |
@@ -236,7 +231,6 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-																					 
             sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
@@ -256,7 +250,6 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-																				   
           sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           
           echo "Membuat artefak untuk $DEVICE..."
