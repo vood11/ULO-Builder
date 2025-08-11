@@ -107,7 +107,9 @@ jobs:
               exit 1
             fi
             FILENAME=$(basename "$CUSTOM_URL")
-            TAG_SUFFIX="Custom-$(echo $FILENAME | sed 's/\.tar\.gz$//')"
+            # <-- PERUBAHAN: Membersihkan nama file untuk tag rilis -->
+            CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
+            TAG_SUFFIX="Custom-$CLEANED_NAME"
             echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
             echo "matrix={\"include\":[{\"name\":\"$FILENAME\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           else
@@ -170,7 +172,6 @@ jobs:
         run: |
           echo "Downloading custom RootFS from ${{ github.event.inputs.custom_rootfs_url }} using aria2c..."
           sudo mkdir -p rootfs
-          # <-- PERUBAHAN: Menambahkan --quiet=true untuk meminimalkan log output -->
           sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
           echo "Download complete. File saved as rootfs/${{ matrix.name }}"
 
