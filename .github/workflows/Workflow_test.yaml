@@ -88,22 +88,8 @@ on:
         type: string
 
 jobs:
-  # JOB 1: HANYA BERJALAN JIKA MEMILIH DARI DAFTAR (BUKAN 'custom')
-  build_from_list:
-    name: Build from Predefined List
-    if: github.event.inputs.rootfs_choice != 'custom'
-    uses: ./.github/workflows/reusable-build.yml
-    with:
-      rootfs_choice: ${{ github.event.inputs.rootfs_choice }}
-      device_choice: ${{ github.event.inputs.device_choice }}
-      rootfs_size: ${{ github.event.inputs.rootfs_size }}
-      fwinfo: ${{ github.event.inputs.fwinfo }}
-    secrets: inherit
-
-  # JOB 2: HANYA BERJALAN JIKA MEMILIH 'custom'
-  build_from_url:
-    name: Build from Custom URL
-    if: github.event.inputs.rootfs_choice == 'custom'
+  build_and_release:
+    name: Build and Release Firmware
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -112,11 +98,11 @@ jobs:
         run: |
           sudo -E apt-get update
           sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2 python3-pip
-          if [[ "${{ github.event.inputs.custom_rootfs_url }}" =~ "drive.google.com" ]]; then
+          if [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" && "${{ github.event.inputs.custom_rootfs_url }}" =~ "drive.google.com" ]]; then
             echo "Menginstal gdown..."
             sudo pip3 install gdown
           fi
-          if [[ "${{ github.event.inputs.custom_rootfs_url }}" =~ "mega.nz" ]]; then
+          if [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" && "${{ github.event.inputs.custom_rootfs_url }}" =~ "mega.nz" ]]; then
             echo "Menginstal megatools..."
             sudo -E apt-get -y install megatools
           fi
@@ -125,58 +111,65 @@ jobs:
         uses: actions/checkout@v4
       - run: sudo ./ulo -y
 
-      - name: 3. Download RootFS & Dapatkan Nama Asli
-        id: download
+      - name: 3. Siapkan RootFS dan Nama Rilis
+        id: setup
         run: |
-          URL="${{ github.event.inputs.custom_rootfs_url }}"
-          DOWNLOAD_DIR="rootfs_temp"
-          mkdir -p "$DOWNLOAD_DIR"
+          ROOTFS_FOR_BUILD="rootfs.tar.gz" # Nama file internal yang konsisten untuk proses build
           
-          echo "Mendeteksi jenis tautan dari: $URL"
-          if [[ "$URL" =~ "drive.google.com" ]]; then
-            sudo gdown --output "$DOWNLOAD_DIR/" "$URL"
-          elif [[ "$URL" =~ "mega.nz" ]]; then
-            sudo megadl --path "$DOWNLOAD_DIR" "$URL"
+          if [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
+            URL="${{ github.event.inputs.custom_rootfs_url }}"
+            DOWNLOAD_DIR="rootfs_temp"
+            mkdir -p "$DOWNLOAD_DIR"
+            
+            echo "Mendeteksi jenis tautan dari: $URL"
+            if [[ "$URL" =~ "drive.google.com" ]]; then
+              sudo gdown --output "$DOWNLOAD_DIR/" "$URL"
+            elif [[ "$URL" =~ "mega.nz" ]]; then
+              sudo megadl --path "$DOWNLOAD_DIR" "$URL"
+            else
+              sudo aria2c --quiet=true --dir="$DOWNLOAD_DIR" -x 16 -s 16 -k 1M "$URL"
+            fi
+
+            DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -type f -print -quit)
+            if [ ! -f "$DOWNLOADED_FILE" ]; then
+              echo "Gagal menemukan file yang diunduh."
+              exit 1
+            fi
+            
+            REAL_FILENAME=$(basename "$DOWNLOADED_FILE")
+            echo "Nama file asli yang terdeteksi: $REAL_FILENAME"
+            
+            sudo mv "$DOWNLOADED_FILE" "rootfs/$ROOTFS_FOR_BUILD"
+            sudo rm -rf "$DOWNLOAD_DIR"
+            
+            CLEAN_SUFFIX=$(echo "$REAL_FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.img$//' -e 's/\.zip$//')
+            TAG_SUFFIX="Custom-$CLEAN_SUFFIX"
           else
-            sudo aria2c --quiet=true --dir="$DOWNLOAD_DIR" -x 16 -s 16 -k 1M "$URL"
+            # Salin rootfs dari daftar ke nama file build standar
+            sudo cp "rootfs/${{ github.event.inputs.rootfs_choice }}" "rootfs/$ROOTFS_FOR_BUILD"
+            
+            # Buat tag suffix dari pilihan
+            if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="ImmortalWrt-21.02.7-DBAI"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.4-A2OS"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.4-ALKHANET"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.5-ALKHANET"
+            else
+              TAG_SUFFIX="OpenWrt-23.05.5-InsomWRT"
+            fi
           fi
-
-          DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -type f -print -quit)
-          if [ ! -f "$DOWNLOADED_FILE" ]; then
-            echo "Gagal menemukan file yang diunduh."
-            exit 1
-          fi
           
-          REAL_FILENAME=$(basename "$DOWNLOADED_FILE")
-          echo "Nama file asli yang terdeteksi: $REAL_FILENAME"
-          
-          sudo mv "$DOWNLOADED_FILE" "rootfs/custom-rootfs.tar.gz"
-          sudo rm -rf "$DOWNLOAD_DIR"
-          echo "real_filename=$REAL_FILENAME" >> $GITHUB_OUTPUT
+          echo "Nama file untuk build: $ROOTFS_FOR_BUILD"
+          echo "Tag Suffix untuk rilis: $TAG_SUFFIX"
+          echo "rootfs_build_name=$ROOTFS_FOR_BUILD" >> $GITHUB_OUTPUT
+          echo "tag_suffix=$TAG_SUFFIX" >> $GITHUB_OUTPUT
 
-      - name: 4. Buat Nama Rilis & Tag
-        id: release_info
+      - name: 4. Bangun Firmware
         run: |
-          REAL_FILENAME="${{ steps.download.outputs.real_filename }}"
-          CLEAN_SUFFIX=$(echo "$REAL_FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.img$//' -e 's/\.zip$//')
-          FINAL_TAG_SUFFIX="Custom-$CLEAN_SUFFIX"
-          
-          sudo apt-get install -y locales
-          sudo locale-gen id_ID.UTF-8
-          export LC_TIME=id_ID.UTF-8
-          export TZ="Asia/Jakarta"
-          bulan=$(date +%B)
-          tanggal=$(date +%d)
-          tahun=$(date +%Y)
-          
-          RELEASE_TAG="${FINAL_TAG_SUFFIX}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}"
-          echo "Nama tag rilis final: $RELEASE_TAG"
-          echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
-          echo "tag_suffix=$FINAL_TAG_SUFFIX" >> $GITHUB_OUTPUT
-
-      - name: 5. Bangun Firmware
-        run: |
-          ROOTFS_NAME="custom-rootfs.tar.gz"
+          ROOTFS_NAME="${{ steps.setup.outputs.rootfs_build_name }}"
           if [[ "${{ github.event.inputs.device_choice }}" == "all" ]]; then
             DEVICE_LIST=$(cat <<EOF
             {"device":"s905x","kernel":"6.1.66-DBAI"}
@@ -238,18 +231,18 @@ jobs:
             sudo ./ulo -m "$DEVICE" -r "$ROOTFS_NAME" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           fi
           
-      - name: 6. Unggah Aset Rilis
+      - name: 5. Unggah Aset Rilis
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: out/**/*
-          tag: ${{ steps.release_info.outputs.release_tag }}
+          tag: ${{ steps.setup.outputs.tag_suffix }}_ULO-RELEASE_$(date +%B-%d-%Y)
           file_glob: true
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
             ### Informasi firmware OpenWrt
-            - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ steps.release_info.outputs.tag_suffix }}**
+            - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ steps.setup.outputs.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
             - Facebook FP: https://www.facebook.com/armarchindo/
@@ -258,7 +251,7 @@ jobs:
 
   delete_old_runs:
     name: Delete Old Workflow Runs
-    needs: [build_from_list, build_from_url]
+    needs: build_and_release
     if: always()
     runs-on: ubuntu-latest
     steps:
