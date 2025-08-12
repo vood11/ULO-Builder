@@ -101,28 +101,10 @@ jobs:
             echo "Akan build semua versi RootFS."
             echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
-            CUSTOM_URL="${{ github.event.inputs.custom_rootfs_url }}"
-            if [[ -z "$CUSTOM_URL" ]]; then
-              echo "Error: Opsi 'custom' dipilih tetapi tidak ada URL yang diberikan."
-              exit 1
-            fi
-            
-            # <-- PERBAIKAN: Logika baru untuk membuat nama tag yang bersih dan valid -->
-            TAG_SUFFIX=""
-            if [[ "$CUSTOM_URL" =~ "drive.google.com" ]]; then
-              FILE_ID=$(echo "$CUSTOM_URL" | sed -n 's/.*\/d\/\([^\/]*\).*/\1/p')
-              TAG_SUFFIX="Custom-GDrive-$FILE_ID"
-            elif [[ "$CUSTOM_URL" =~ "mega.nz" ]]; then
-              FILE_ID=$(echo "$CUSTOM_URL" | sed -n 's/.*\/file\/\([^#]*\).*/\1/p')
-              TAG_SUFFIX="Custom-Mega-$FILE_ID"
-            else
-              FILENAME=$(basename "$CUSTOM_URL")
-              CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
-              TAG_SUFFIX="Custom-$CLEANED_NAME"
-            fi
-
+            # <-- PERBAIKAN: Gunakan tag suffix sementara yang valid. Nama asli akan ditentukan setelah diunduh. -->
+            TAG_SUFFIX="Custom-Build-${{ github.run_number }}"
             TARGET_FILENAME="custom-rootfs.tar.gz"
-            echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
+            echo "Akan build RootFS kustom. Nama rilis final akan ditentukan setelah unduhan."
             echo "matrix={\"include\":[{\"name\":\"$TARGET_FILENAME\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
@@ -193,32 +175,50 @@ jobs:
         if: github.event.inputs.rootfs_choice == 'custom'
         run: |
           URL="${{ github.event.inputs.custom_rootfs_url }}"
-          OUTPUT_FILE="rootfs/${{ matrix.name }}"
+          DOWNLOAD_DIR="rootfs_temp"
+          FINAL_OUTPUT_FILE="rootfs/${{ matrix.name }}"
           
           echo "Mendeteksi jenis tautan dari: $URL"
-          sudo mkdir -p rootfs
-
+          mkdir -p "$DOWNLOAD_DIR"
+          
           if [[ "$URL" =~ "drive.google.com" ]]; then
             echo "Tautan Google Drive terdeteksi. Menggunakan gdown..."
-            sudo gdown --output "$OUTPUT_FILE" "$URL"
+            # Unduh ke direktori sementara dengan nama file asli
+            sudo gdown --output "$DOWNLOAD_DIR/" "$URL"
           elif [[ "$URL" =~ "mega.nz" ]]; then
             echo "Tautan Mega.nz terdeteksi. Menggunakan megadl..."
-            TEMP_DIR=$(mktemp -d)
-            sudo megadl --path "$TEMP_DIR" "$URL"
-            DOWNLOADED_FILE=$(find "$TEMP_DIR" -type f -print -quit)
-            if [ -f "$DOWNLOADED_FILE" ]; then
-              sudo mv "$DOWNLOADED_FILE" "$OUTPUT_FILE"
-              sudo rm -rf "$TEMP_DIR"
-            else
-              echo "Gagal menemukan file yang diunduh dari Mega."
-              exit 1
-            fi
+            sudo megadl --path "$DOWNLOAD_DIR" "$URL"
           else
             echo "Tautan langsung terdeteksi. Menggunakan aria2c..."
-            sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "$URL"
+            sudo aria2c --quiet=true --dir="$DOWNLOAD_DIR" -x 16 -s 16 -k 1M "$URL"
+          fi
+
+          # Temukan file yang diunduh (seharusnya hanya ada satu)
+          DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -type f -print -quit)
+          if [ ! -f "$DOWNLOADED_FILE" ]; then
+            echo "Gagal menemukan file yang diunduh."
+            exit 1
           fi
           
-          echo "Download complete. File saved as $OUTPUT_FILE"
+          # Dapatkan nama file asli
+          REAL_FILENAME=$(basename "$DOWNLOADED_FILE")
+          echo "Nama file asli yang diunduh: $REAL_FILENAME"
+
+          # Buat tag suffix yang bersih dari nama file asli
+          CLEAN_SUFFIX=$(echo "$REAL_FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.img$//' -e 's/\.zip$//')
+          FINAL_TAG="Custom-$CLEAN_SUFFIX"
+          echo "Membuat tag suffix final: $FINAL_TAG"
+
+          # Simpan tag final ke file untuk digunakan oleh job rilis
+          mkdir -p ./artifact
+          echo "$FINAL_TAG" > ./artifact/final_tag_suffix.txt
+
+          # Pindahkan dan ganti nama file untuk digunakan oleh langkah build
+          sudo mkdir -p rootfs
+          sudo mv "$DOWNLOADED_FILE" "$FINAL_OUTPUT_FILE"
+          sudo rm -rf "$DOWNLOAD_DIR"
+          
+          echo "Download complete. File saved as $FINAL_OUTPUT_FILE"
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
@@ -338,9 +338,16 @@ jobs:
           echo "Isi folder yang akan dirilis:"
           ls -la combined_artifact/
 
-      - name: Dapatkan Tanggal Saat Ini
+      - name: Dapatkan Tanggal Saat Ini dan Tag Rilis
         id: date
         run: |
+          # <-- PERBAIKAN: Gunakan tag suffix final dari file jika ada, jika tidak, gunakan dari matrix -->
+          FINAL_TAG_SUFFIX="${{ matrix.tag_suffix }}"
+          if [ -f "combined_artifact/final_tag_suffix.txt" ]; then
+            FINAL_TAG_SUFFIX=$(cat combined_artifact/final_tag_suffix.txt)
+            echo "Menggunakan tag suffix dari hasil build: $FINAL_TAG_SUFFIX"
+          fi
+
           sudo apt-get install -y locales
           sudo locale-gen id_ID.UTF-8
           export LC_TIME=id_ID.UTF-8
@@ -348,7 +355,7 @@ jobs:
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
-          echo "release_tag=${{ matrix.tag_suffix }}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+          echo "release_tag=${FINAL_TAG_SUFFIX}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
@@ -368,7 +375,6 @@ jobs:
             - Blog: https://dbai-team.com
             - Pertanyaan dan diskusi ke grup Discord DBAI: https://discord.gg/BXNzaJFTPP
 
-  # <-- PERUBAHAN: Menambahkan job baru untuk menghapus workflow runs lama -->
   delete_old_runs:
     name: 4. Delete Old Workflow Runs
     needs: upload_release
