@@ -18,7 +18,7 @@ on:
           - custom
       
       custom_rootfs_url:
-        description: 'URL download RootFS (Gunakan tautan dari GDrive, Mega, atau hotlink)'
+        description: 'URL download RootFS (HANYA ISI JIKA memilih "custom" di atas)'
         required: false
         type: string
 
@@ -88,67 +88,33 @@ on:
         type: string
 
 jobs:
-  build_and_release:
-    name: Build and Release Firmware
+  determine_rootfs:
+    name: 1. Determine RootFS
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: 1. Instalasi Prasyarat
+      - name: Determine RootFS build matrix
+        id: set-matrix
         run: |
-          sudo -E apt-get update
-          sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2 python3-pip
-          if [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" && "${{ github.event.inputs.custom_rootfs_url }}" =~ "drive.google.com" ]]; then
-            echo "Menginstal gdown..."
-            sudo pip3 install gdown
-          fi
-          if [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" && "${{ github.event.inputs.custom_rootfs_url }}" =~ "mega.nz" ]]; then
-            echo "Menginstal megatools..."
-            sudo -E apt-get -y install megatools
-          fi
-
-      - name: 2. Checkout Repositori & Setup Awal
-        uses: actions/checkout@v4
-      - run: sudo ./ulo -y
-
-      - name: 3. Siapkan RootFS dan Nama Rilis
-        id: setup
-        run: |
-          ROOTFS_FOR_BUILD="rootfs.tar.gz" # Nama file internal yang konsisten untuk proses build
-          
-          if [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
-            URL="${{ github.event.inputs.custom_rootfs_url }}"
-            DOWNLOAD_DIR="rootfs_temp"
-            mkdir -p "$DOWNLOAD_DIR"
-            
-            echo "Mendeteksi jenis tautan dari: $URL"
-            if [[ "$URL" =~ "drive.google.com" ]]; then
-              sudo gdown --output "$DOWNLOAD_DIR/" "$URL"
-            elif [[ "$URL" =~ "mega.nz" ]]; then
-              sudo megadl --path "$DOWNLOAD_DIR" "$URL"
-            else
-              sudo aria2c --quiet=true --dir="$DOWNLOAD_DIR" -x 16 -s 16 -k 1M "$URL"
-            fi
-
-            DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -type f -print -quit)
-            if [ ! -f "$DOWNLOADED_FILE" ]; then
-              echo "Gagal menemukan file yang diunduh."
+          if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
+            echo "Akan build semua versi RootFS."
+            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
+            CUSTOM_URL="${{ github.event.inputs.custom_rootfs_url }}"
+            if [[ -z "$CUSTOM_URL" ]]; then
+              echo "Error: Opsi 'custom' dipilih tetapi tidak ada URL yang diberikan."
               exit 1
             fi
-            
-            REAL_FILENAME=$(basename "$DOWNLOADED_FILE")
-            echo "Nama file asli yang terdeteksi: $REAL_FILENAME"
-            
-            sudo mv "$DOWNLOADED_FILE" "rootfs/$ROOTFS_FOR_BUILD"
-            sudo rm -rf "$DOWNLOAD_DIR"
-            
-            CLEAN_SUFFIX=$(echo "$REAL_FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.img$//' -e 's/\.zip$//')
-            TAG_SUFFIX="Custom-$CLEAN_SUFFIX"
+            FILENAME=$(basename "$CUSTOM_URL")
+            # <-- PERUBAHAN: Membersihkan nama file untuk tag rilis -->
+            CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
+            TAG_SUFFIX="Custom-$CLEANED_NAME"
+            echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
+            echo "matrix={\"include\":[{\"name\":\"$FILENAME\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           else
-            # Salin rootfs dari daftar ke nama file build standar
-            sudo cp "rootfs/${{ github.event.inputs.rootfs_choice }}" "rootfs/$ROOTFS_FOR_BUILD"
-            
-            # Buat tag suffix dari pilihan
+            echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
+            TAG_SUFFIX=""
             if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="ImmortalWrt-21.02.7-DBAI"
             elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz" ]]; then
@@ -160,104 +126,199 @@ jobs:
             else
               TAG_SUFFIX="OpenWrt-23.05.5-InsomWRT"
             fi
+            echo "matrix={\"include\":[{\"name\":\"${{ github.event.inputs.rootfs_choice }}\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           fi
-          
-          SANITIZED_TAG_SUFFIX=$(echo "$TAG_SUFFIX" | sed 's/[^a-zA-Z0-9._-]//g')
 
-          echo "Nama file untuk build: $ROOTFS_FOR_BUILD"
-          echo "Tag Suffix untuk rilis: $SANITIZED_TAG_SUFFIX"
-          echo "rootfs_build_name=$ROOTFS_FOR_BUILD" >> $GITHUB_OUTPUT
-          echo "tag_suffix=$SANITIZED_TAG_SUFFIX" >> $GITHUB_OUTPUT
-
-      - name: 4. Bangun Firmware
+  build_ipk:
+    name: 2. Build Firmware
+    needs: determine_rootfs
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.determine_rootfs.outputs.matrix) }}
+    steps:
+      - name: Pembersihan dan Instalasi Prasyarat
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          ROOTFS_NAME="${{ steps.setup.outputs.rootfs_build_name }}"
-          if [[ "${{ github.event.inputs.device_choice }}" == "all" ]]; then
-            DEVICE_LIST='
-            {"device":"s905x","kernel":"6.1.66-DBAI"}
-            {"device":"s905x","kernel":"4.9.337"}
-            {"device":"s905x2","kernel":"6.1.66-DBAI"}
-            {"device":"s905x2","kernel":"5.4.279"}
-            {"device":"s905x2","kernel":"4.9.337"}
-            {"device":"s905x3","kernel":"6.1.66-DBAI"}
-            {"device":"s905x4","kernel":"6.1.66-DBAI"}
-            {"device":"s905x4","kernel":"5.4.279"}
-            {"device":"rk3588s-orangepi-5","kernel":"5.10.160-rk35v-dbai"}
-            {"device":"rk3566-orangepi-3b","kernel":"5.10.160-rk35v-dbai"}
-            {"device":"rk3588-orangepi-5-max","kernel":"5.10.160-rk35v-dbai"}
-            {"device":"rk3588-orangepi-5-plus","kernel":"5.10.160-rk35v-dbai"}
-            {"device":"h618-orangepi-zero3","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h618-orangepi-zero3","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"a64-bananapi-m64","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"a64-bananapi-m64","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"a64-nanopi-a64","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"a64-nanopi-a64","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h313-x96q-lpddr3","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h313-x96q-lpddr3","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h5-orangepi-pc2","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h5-orangepi-pc2","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h5-orangepi-prime","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h5-orangepi-prime","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h5-orangepi-zeroplus","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h5-orangepi-zeroplus","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h5-orangepi-zeroplus2","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h5-orangepi-zeroplus2","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h6-orangepi-1plus","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h6-orangepi-1plus","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h6-orangepi-3","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h6-orangepi-3","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h6-orangepi-3lts","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h6-orangepi-3lts","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h6-orangepi-lite2","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h6-orangepi-lite2","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h6-tanix-tx6","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h6-tanix-tx6","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h616-orangepi-zero2","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h616-orangepi-zero2","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h616-x96-mate","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h616-x96-mate","kernel":"6.1.31-AW64-DBAI"}
-            {"device":"h618-orangepi-zero2w","kernel":"6.1.104-AW64-DBAI"}
-            {"device":"h618-orangepi-zero2w","kernel":"6.1.31-AW64-DBAI"}
-            '
-            echo "$DEVICE_LIST" | while read -r device_config; do
-              if [ -z "$device_config" ]; then continue; fi
-              DEVICE=$(echo "$device_config" | jq -r .device)
-              KERNEL=$(echo "$device_config" | jq -r .kernel)
-              sudo ./ulo -m "$DEVICE" -r "$ROOTFS_NAME" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
-            done
-          else
-            CHOICE="${{ github.event.inputs.device_choice }}"
-            DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
-            KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
-            sudo ./ulo -m "$DEVICE" -r "$ROOTFS_NAME" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
-          fi
+          sudo -E apt-get update
+          sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2
+          sudo -E apt-get -y autoremove --purge
+          sudo -E apt-get clean
+
+      - name: Checkout Repositori
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Cache repositori ULO
+        uses: actions/cache@v4
+        with:
+          path: |
+            core/
+            rootfs/
+            device/
+          key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
+
+      - name: Initial Setup & RootFS Download
+        run: |
+          # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
+          sudo ./ulo -y
+      
+      - name: Download Custom RootFS (if selected)
+        if: github.event.inputs.rootfs_choice == 'custom'
+        run: |
+          echo "Downloading custom RootFS from ${{ github.event.inputs.custom_rootfs_url }} using aria2c..."
+          sudo mkdir -p rootfs
+          sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
+          echo "Download complete. File saved as rootfs/${{ matrix.name }}"
+
+      - name: Membangun Semua Device (jika 'all' dipilih)
+        if: github.event.inputs.device_choice == 'all'
+        run: |
+          DEVICE_LIST=$(cat <<EOF
+          {"device":"s905x","kernel":"6.1.66-DBAI"}
+          {"device":"s905x","kernel":"4.9.337"}
+          {"device":"s905x2","kernel":"6.1.66-DBAI"}
+          {"device":"s905x2","kernel":"5.4.279"}
+          {"device":"s905x2","kernel":"4.9.337"}
+          {"device":"s905x3","kernel":"6.1.66-DBAI"}
+          {"device":"s905x4","kernel":"6.1.66-DBAI"}
+          {"device":"s905x4","kernel":"5.4.279"}
+          {"device":"rk3588s-orangepi-5","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"rk3566-orangepi-3b","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"rk3588-orangepi-5-max","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"rk3588-orangepi-5-plus","kernel":"5.10.160-rk35v-dbai"}
+          {"device":"h618-orangepi-zero3","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h618-orangepi-zero3","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"a64-bananapi-m64","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"a64-bananapi-m64","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"a64-nanopi-a64","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"a64-nanopi-a64","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h313-x96q-lpddr3","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h313-x96q-lpddr3","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-pc2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-pc2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-prime","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-prime","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h5-orangepi-zeroplus2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-1plus","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-1plus","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-3","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-3","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-3lts","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-3lts","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-orangepi-lite2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-orangepi-lite2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h6-tanix-tx6","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h6-tanix-tx6","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h616-orangepi-zero2","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h616-orangepi-zero2","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h616-x96-mate","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h616-x96-mate","kernel":"6.1.31-AW64-DBAI"}
+          {"device":"h618-orangepi-zero2w","kernel":"6.1.104-AW64-DBAI"}
+          {"device":"h618-orangepi-zero2w","kernel":"6.1.31-AW64-DBAI"}
+          EOF
+          )
+
+          echo "$DEVICE_LIST" | while read -r device_config; do
+            if [ -z "$device_config" ]; then continue; fi
+            DEVICE=$(echo "$device_config" | jq -r .device)
+            KERNEL=$(echo "$device_config" | jq -r .kernel)
+            echo "=========================================================="
+            echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
+            echo "=========================================================="
+            sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            echo "Membuat artefak untuk $DEVICE..."
+            mkdir -p ./artifact/"$DEVICE"
+            cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
+          done
+
+      - name: Membangun Device Spesifik (jika bukan 'all')
+        if: github.event.inputs.device_choice != 'all'
+        run: |
+          CHOICE="${{ github.event.inputs.device_choice }}"
+          DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
+          KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
           
-      - name: 5. Unggah Aset Rilis
+          echo "=========================================================="
+          echo "Pilihan Pengguna: $CHOICE"
+          echo "Hasil Ekstraksi -> Device: $DEVICE, Kernel: $KERNEL"
+          echo "Membangun untuk RootFS: ${{ matrix.name }}"
+          echo "=========================================================="
+          
+          sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+          
+          echo "Membuat artefak untuk $DEVICE..."
+          mkdir -p ./artifact/"$DEVICE"
+          cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
+
+      - name: Mengirim Paket
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrt_package_${{ matrix.tag_suffix }}
+          path: ./artifact/
+
+  upload_release:
+    name: 3. Create Release
+    needs: [determine_rootfs, build_ipk]
+    if: success()
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.determine_rootfs.outputs.matrix) }}
+    steps:
+      - name: Checkout Repositori
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Unduh artefak untuk ${{ matrix.tag_suffix }}
+        uses: actions/download-artifact@v4
+        with:
+          name: openwrt_package_${{ matrix.tag_suffix }}
+          path: artifacts
+
+      - name: Gabungkan artefak
+        run: |
+          mkdir -p combined_artifact
+          find ./artifacts -type f -exec mv {} ./combined_artifact/ \;
+          echo "Isi folder yang akan dirilis:"
+          ls -la combined_artifact/
+
+      - name: Dapatkan Tanggal Saat Ini
+        id: date
+        run: |
+          sudo apt-get install -y locales
+          sudo locale-gen id_ID.UTF-8
+          export LC_TIME=id_ID.UTF-8
+          export TZ="Asia/Jakarta"
+          bulan=$(date +%B)
+          tanggal=$(date +%d)
+          tahun=$(date +%Y)
+          echo "release_tag=${{ matrix.tag_suffix }}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+
+      - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: out/**/*
-          tag: ${{ steps.setup.outputs.tag_suffix }}_ULO-RELEASE_$(date +%B-%d-%Y)
+          file: combined_artifact/*
+          tag: ${{ steps.date.outputs.release_tag }}
           file_glob: true
           overwrite: true
           body: |
             ## Rilis OpenWrt untuk Berbagai Perangkat SBC dan STB
             ### Informasi firmware OpenWrt
-            - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ steps.setup.outputs.tag_suffix }}**
+            - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
             - Facebook FP: https://www.facebook.com/armarchindo/
             - Blog: https://dbai-team.com
             - Pertanyaan dan diskusi ke grup Discord DBAI: https://discord.gg/BXNzaJFTPP
-
-  delete_old_runs:
-    name: Delete Old Workflow Runs
-    needs: build_and_release
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete workflow runs
-        uses: GitRML/delete-workflow-runs@main
-        with:
-          retain_days: 1
-          keep_minimum_runs: 3
