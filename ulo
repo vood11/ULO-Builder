@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 
+#
 # Copyright (c) 2023 ulo
-# 
+#
 # Licensed under the MIT.
-# 
+#
 lolcat=/usr/games/lolcat
 
 ver="1.3"
@@ -36,41 +36,42 @@ die() {
 }
 
 check_depedencies() {
-    echo -e "Preparing install ulo dependies"
+    local pkgs_to_install=()
     req=(lolcat pigz aria2 wget jq)
+
+    # Tentukan manajer paket dan periksa dependensi yang hilang
     if command -v pacman &>/dev/null; then
-        lolcat="/usr/bin/lolcat"  # Update lolcat path for Arch Linux
-        list=$(pacman -Qq | grep -E "lolcat|pigz|aria2|wget|jq")
-        for req_pkg in ${req[*]}; do
-            if echo "$list" | grep -q "^$req_pkg$"; then
-                echo "  $req_pkg Installed"
-            else
-                echo "  Package $req_pkg not found"
-                echo "  Installing $req_pkg "
-                sudo pacman -S --noconfirm $req_pkg > /dev/null 2>&1
-            fi
+        lolcat="/usr/bin/lolcat" # Perbarui path lolcat untuk Arch Linux
+        for pkg in "${req[@]}"; do
+            pacman -Qq "$pkg" &>/dev/null || pkgs_to_install+=("$pkg")
         done
     else
-        list=$(dpkg -l | grep -E "lolcat|pigz|aria2|wget|jq" | awk '{ print $2 }')
-        for req_pkg in ${req[*]}; do
-            for lst_pkg in $list; do
-                stat=0
-                if [ ${req_pkg} == $lst_pkg ] ; then
-                    echo "  $req_pkg Installed"
-                    stat=0
-                break;
-                else
-                    stat=1
-                fi
-            done
-            if [[ $stat = 1 ]] ; then
-                echo "  Package $req_pkg not found"
-                echo "  Installing $req_pkg "
-                apt -y install $req_pkg > /dev/null 2>&1
-            fi
+        for pkg in "${req[@]}"; do
+            dpkg -s "$pkg" &>/dev/null || pkgs_to_install+=("$pkg")
         done
     fi
-    echo -e "Done...!!!" | $lolcat -a -d 20
+
+    # Jika ada paket yang perlu diinstal, tampilkan pesan dan lakukan instalasi
+    if [ ${#pkgs_to_install[@]} -gt 0 ]; then
+        # Gunakan echo standar untuk pesan fungsional
+        echo -e "Preparing to install dependencies..."
+        
+        if command -v pacman &>/dev/null; then
+            for pkg in "${pkgs_to_install[@]}"; do
+                echo "  Installing $pkg..."
+                sudo pacman -S --noconfirm "$pkg" > /dev/null 2>&1
+            done
+        else
+            # Gunakan apt-get untuk kompatibilitas yang lebih luas
+            for pkg in "${pkgs_to_install[@]}"; do
+                echo "  Installing $pkg..."
+                sudo apt-get -y install "$pkg" > /dev/null 2>&1
+            done
+        fi
+        
+        # Gunakan echo standar untuk pesan fungsional
+        echo -e "Done!!!"
+    fi
 }
 
 custom_rootfs_files() {
@@ -84,7 +85,7 @@ custom_rootfs_files() {
     elif [ "$optz" = "no" ]; then
         opt="N"
     else
-        read -p "" opt 
+        read -p "" opt
     fi
     if [ "$opt" = "y" ] || [ "$opt" = "Y" ]; then
         echo -e "Downloading ROOTFS Files..."
@@ -154,8 +155,6 @@ download_requirement_files() {
     find_rootfs
     find_kernels
 }
-
-check_depedencies
 
 cleaning() {
     for x in $(lsblk | grep $(pwd) | grep -oE 'loop[0-9]+' | sort | uniq); do
@@ -316,7 +315,6 @@ choose_option() {
     done
 
     [ $cnt = 3 ] && die "Bye NooB...!!!"
-
     return $opt
 }
 
@@ -340,6 +338,7 @@ make_losetup() {
         mkdir -p $mount/${loop_seq}p2
         mount ${loop}p2 $mount/${loop_seq}p2
     }
+    
     [[ ! -e ${loop}p1 && ! -e ${loop}p2 && -e ${loop} ]] && {
         mkdir -p $mount/${loop_seq}
         mount ${loop} $mount/${loop_seq}
@@ -572,6 +571,7 @@ lain_lain() {
             cp -f ${wireless_mac80211} ${wireless_mac80211}.bak
             sed -i "s|iw |ipconfig |g" ${wireless_mac80211}
         }
+ 
         rm -rf $path/lib/firmware/
         cp -rf $fwdriver_path/firmware $path/lib/
         chmod 777 $path/lib/firmware/*
@@ -600,7 +600,8 @@ set_rootsize() {
 
     [ $cnt = 3 ] && die "Bye NooB..."
 
-    echo -e "${rootsize}\n"
+    # Baris ini dihapus karena menyebabkan input tercetak dua kali
+    # echo -e "${rootsize}\n"
 }
 
 extract_kernel() {
@@ -711,7 +712,7 @@ mount_image() {
                 suffix=${path##*.}
             ;;
             img)
-                do_losetup $path
+                make_losetup $path
                 break
             ;;
             *)
@@ -742,7 +743,13 @@ Options:
 EOF
 }
 
+# Periksa hak akses root
+[ $(id -u) = 0 ] || die "please run this script as root"
 
+# Jalankan pengecekan dependensi SEBELUM mencoba menggunakan lolcat
+check_depedencies
+
+# Tampilkan banner setelah dependensi dipastikan ada
 echo -e "
 ======================================================================
 ----------------------------------------------------------------------
@@ -752,8 +759,8 @@ echo -e "
 ----------------------------------------------------------------------
 ======================================================================
 " | $lolcat -a -d 5
-[ $(id -u) = 0 ] || die "please run this script as root"
 
+# Lanjutkan sisa skrip
 check_requirement_files
 
 while [ "$1" ]; do
