@@ -88,7 +88,7 @@ on:
         type: string
 
 jobs:
-  # Job ini hanya berjalan jika BUKAN 'custom' yang dipilih
+  # JOB 1: HANYA BERJALAN JIKA MEMILIH DARI DAFTAR (BUKAN 'custom')
   build_from_list:
     name: Build from Predefined List
     if: github.event.inputs.rootfs_choice != 'custom'
@@ -98,8 +98,9 @@ jobs:
       device_choice: ${{ github.event.inputs.device_choice }}
       rootfs_size: ${{ github.event.inputs.rootfs_size }}
       fwinfo: ${{ github.event.inputs.fwinfo }}
+    secrets: inherit
 
-  # Job ini hanya berjalan JIKA 'custom' yang dipilih
+  # JOB 2: HANYA BERJALAN JIKA MEMILIH 'custom'
   build_from_url:
     name: Build from Custom URL
     if: github.event.inputs.rootfs_choice == 'custom'
@@ -107,9 +108,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Pembersihan dan Instalasi Prasyarat
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: 1. Instalasi Prasyarat
         run: |
           sudo -E apt-get update
           sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2 python3-pip
@@ -121,17 +120,12 @@ jobs:
             echo "Menginstal megatools..."
             sudo -E apt-get -y install megatools
           fi
-          sudo -E apt-get -y autoremove --purge
-          sudo -E apt-get clean
 
-      - name: Checkout Repositori
+      - name: 2. Checkout Repositori & Setup Awal
         uses: actions/checkout@v4
+      - run: sudo ./ulo -y
 
-      - name: Initial Setup
-        run: |
-          sudo ./ulo -y
-
-      - name: Download Custom RootFS and Get Real Name
+      - name: 3. Download RootFS & Dapatkan Nama Asli
         id: download
         run: |
           URL="${{ github.event.inputs.custom_rootfs_url }}"
@@ -154,23 +148,18 @@ jobs:
           fi
           
           REAL_FILENAME=$(basename "$DOWNLOADED_FILE")
-          echo "Nama file asli: $REAL_FILENAME"
+          echo "Nama file asli yang terdeteksi: $REAL_FILENAME"
           
-          # Pindahkan file ke lokasi build yang benar
-          sudo mkdir -p rootfs
           sudo mv "$DOWNLOADED_FILE" "rootfs/custom-rootfs.tar.gz"
           sudo rm -rf "$DOWNLOAD_DIR"
-
-          # Ekspor nama file asli untuk digunakan nanti
           echo "real_filename=$REAL_FILENAME" >> $GITHUB_OUTPUT
 
-      - name: Generate Release Tag
+      - name: 4. Buat Nama Rilis & Tag
         id: release_info
         run: |
           REAL_FILENAME="${{ steps.download.outputs.real_filename }}"
           CLEAN_SUFFIX=$(echo "$REAL_FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.img$//' -e 's/\.zip$//')
           FINAL_TAG_SUFFIX="Custom-$CLEAN_SUFFIX"
-          echo "Tag suffix yang bersih: $FINAL_TAG_SUFFIX"
           
           sudo apt-get install -y locales
           sudo locale-gen id_ID.UTF-8
@@ -185,9 +174,8 @@ jobs:
           echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
           echo "tag_suffix=$FINAL_TAG_SUFFIX" >> $GITHUB_OUTPUT
 
-      - name: Membangun Firmware
+      - name: 5. Bangun Firmware
         run: |
-          # Logika build yang sama seperti sebelumnya, tapi disederhanakan
           ROOTFS_NAME="custom-rootfs.tar.gz"
           if [[ "${{ github.event.inputs.device_choice }}" == "all" ]]; then
             DEVICE_LIST=$(cat <<EOF
@@ -250,7 +238,7 @@ jobs:
             sudo ./ulo -m "$DEVICE" -r "$ROOTFS_NAME" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           fi
           
-      - name: Unggah Aset Rilis
+      - name: 6. Unggah Aset Rilis
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
