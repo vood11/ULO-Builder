@@ -106,9 +106,21 @@ jobs:
               echo "Error: Opsi 'custom' dipilih tetapi tidak ada URL yang diberikan."
               exit 1
             fi
-            FILENAME=$(basename "$CUSTOM_URL")
-            CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
-            TAG_SUFFIX="Custom-$CLEANED_NAME"
+            
+            # <-- PERBAIKAN: Logika baru untuk membuat nama tag yang bersih dan valid -->
+            TAG_SUFFIX=""
+            if [[ "$CUSTOM_URL" =~ "drive.google.com" ]]; then
+              FILE_ID=$(echo "$CUSTOM_URL" | sed -n 's/.*\/d\/\([^\/]*\).*/\1/p')
+              TAG_SUFFIX="Custom-GDrive-$FILE_ID"
+            elif [[ "$CUSTOM_URL" =~ "mega.nz" ]]; then
+              FILE_ID=$(echo "$CUSTOM_URL" | sed -n 's/.*\/file\/\([^#]*\).*/\1/p')
+              TAG_SUFFIX="Custom-Mega-$FILE_ID"
+            else
+              FILENAME=$(basename "$CUSTOM_URL")
+              CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
+              TAG_SUFFIX="Custom-$CLEANED_NAME"
+            fi
+
             TARGET_FILENAME="custom-rootfs.tar.gz"
             echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
             echo "matrix={\"include\":[{\"name\":\"$TARGET_FILENAME\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
@@ -153,7 +165,6 @@ jobs:
         run: |
           echo "Menginstal prasyarat untuk Google Drive atau Mega..."
           if [[ "${{ github.event.inputs.custom_rootfs_url }}" =~ "drive.google.com" ]]; then
-            # <-- PERBAIKAN: Menggunakan sudo untuk menginstal gdown secara sistem-wide -->
             sudo pip3 install gdown
           fi
           if [[ "${{ github.event.inputs.custom_rootfs_url }}" =~ "mega.nz" ]]; then
@@ -356,3 +367,16 @@ jobs:
             - Facebook FP: https://www.facebook.com/armarchindo/
             - Blog: https://dbai-team.com
             - Pertanyaan dan diskusi ke grup Discord DBAI: https://discord.gg/BXNzaJFTPP
+
+  # <-- PERUBAHAN: Menambahkan job baru untuk menghapus workflow runs lama -->
+  delete_old_runs:
+    name: 4. Delete Old Workflow Runs
+    needs: upload_release
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete workflow runs
+        uses: GitRML/delete-workflow-runs@main
+        with:
+          retain_days: 1
+          keep_minimum_runs: 3
