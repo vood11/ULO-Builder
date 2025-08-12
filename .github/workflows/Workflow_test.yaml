@@ -162,7 +162,6 @@ jobs:
             fi
           fi
           
-          # <-- PERBAIKAN: Sanitasi akhir untuk memastikan tag selalu valid -->
           SANITIZED_TAG_SUFFIX=$(echo "$TAG_SUFFIX" | sed 's/[^a-zA-Z0-9._-]//g')
 
           echo "Nama file untuk build: $ROOTFS_FOR_BUILD"
@@ -174,8 +173,7 @@ jobs:
         run: |
           ROOTFS_NAME="${{ steps.setup.outputs.rootfs_build_name }}"
           if [[ "${{ github.event.inputs.device_choice }}" == "all" ]]; then
-            # <-- PERBAIKAN: Menggunakan sintaks cat <<EOF yang benar untuk multiline string -->
-            DEVICE_LIST=$(cat <<EOF
+            DEVICE_LIST='
             {"device":"s905x","kernel":"6.1.66-DBAI"}
             {"device":"s905x","kernel":"4.9.337"}
             {"device":"s905x2","kernel":"6.1.66-DBAI"}
@@ -220,7 +218,7 @@ jobs:
             {"device":"h616-x96-mate","kernel":"6.1.31-AW64-DBAI"}
             {"device":"h618-orangepi-zero2w","kernel":"6.1.104-AW64-DBAI"}
             {"device":"h618-orangepi-zero2w","kernel":"6.1.31-AW64-DBAI"}
-EOF
+            '
             echo "$DEVICE_LIST" | while read -r device_config; do
               if [ -z "$device_config" ]; then continue; fi
               DEVICE=$(echo "$device_config" | jq -r .device)
