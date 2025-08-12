@@ -101,7 +101,6 @@ jobs:
             echo "Akan build semua versi RootFS."
             echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
-            # <-- PERBAIKAN: Gunakan tag suffix sementara yang valid. Nama asli akan ditentukan setelah diunduh. -->
             TAG_SUFFIX="Custom-Build-${{ github.run_number }}"
             TARGET_FILENAME="custom-rootfs.tar.gz"
             echo "Akan build RootFS kustom. Nama rilis final akan ditentukan setelah unduhan."
@@ -183,7 +182,6 @@ jobs:
           
           if [[ "$URL" =~ "drive.google.com" ]]; then
             echo "Tautan Google Drive terdeteksi. Menggunakan gdown..."
-            # Unduh ke direktori sementara dengan nama file asli
             sudo gdown --output "$DOWNLOAD_DIR/" "$URL"
           elif [[ "$URL" =~ "mega.nz" ]]; then
             echo "Tautan Mega.nz terdeteksi. Menggunakan megadl..."
@@ -193,27 +191,22 @@ jobs:
             sudo aria2c --quiet=true --dir="$DOWNLOAD_DIR" -x 16 -s 16 -k 1M "$URL"
           fi
 
-          # Temukan file yang diunduh (seharusnya hanya ada satu)
           DOWNLOADED_FILE=$(find "$DOWNLOAD_DIR" -type f -print -quit)
           if [ ! -f "$DOWNLOADED_FILE" ]; then
             echo "Gagal menemukan file yang diunduh."
             exit 1
           fi
           
-          # Dapatkan nama file asli
           REAL_FILENAME=$(basename "$DOWNLOADED_FILE")
           echo "Nama file asli yang diunduh: $REAL_FILENAME"
 
-          # Buat tag suffix yang bersih dari nama file asli
           CLEAN_SUFFIX=$(echo "$REAL_FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.img$//' -e 's/\.zip$//')
           FINAL_TAG="Custom-$CLEAN_SUFFIX"
           echo "Membuat tag suffix final: $FINAL_TAG"
 
-          # Simpan tag final ke file untuk digunakan oleh job rilis
           mkdir -p ./artifact
           echo "$FINAL_TAG" > ./artifact/final_tag_suffix.txt
 
-          # Pindahkan dan ganti nama file untuk digunakan oleh langkah build
           sudo mkdir -p rootfs
           sudo mv "$DOWNLOADED_FILE" "$FINAL_OUTPUT_FILE"
           sudo rm -rf "$DOWNLOAD_DIR"
@@ -341,12 +334,15 @@ jobs:
       - name: Dapatkan Tanggal Saat Ini dan Tag Rilis
         id: date
         run: |
-          # <-- PERBAIKAN: Gunakan tag suffix final dari file jika ada, jika tidak, gunakan dari matrix -->
           FINAL_TAG_SUFFIX="${{ matrix.tag_suffix }}"
           if [ -f "combined_artifact/final_tag_suffix.txt" ]; then
             FINAL_TAG_SUFFIX=$(cat combined_artifact/final_tag_suffix.txt)
             echo "Menggunakan tag suffix dari hasil build: $FINAL_TAG_SUFFIX"
           fi
+          
+          # <-- PERBAIKAN: Menambahkan langkah sanitasi untuk memastikan tag selalu valid -->
+          SANITIZED_TAG_SUFFIX=$(echo "$FINAL_TAG_SUFFIX" | sed 's/[^a-zA-Z0-9._-]//g')
+          echo "Tag Suffix setelah disanitasi: $SANITIZED_TAG_SUFFIX"
 
           sudo apt-get install -y locales
           sudo locale-gen id_ID.UTF-8
@@ -355,7 +351,7 @@ jobs:
           bulan=$(date +%B)
           tanggal=$(date +%d)
           tahun=$(date +%Y)
-          echo "release_tag=${FINAL_TAG_SUFFIX}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
+          echo "release_tag=${SANITIZED_TAG_SUFFIX}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
