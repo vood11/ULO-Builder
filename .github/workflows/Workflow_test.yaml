@@ -171,7 +171,8 @@ jobs:
         run: |
           ROOTFS_NAME="${{ steps.setup.outputs.rootfs_build_name }}"
           if [[ "${{ github.event.inputs.device_choice }}" == "all" ]]; then
-            DEVICE_LIST=$(cat <<EOF
+            # <-- PERBAIKAN: Membungkus daftar device dalam tanda kutip untuk mencegah ekspansi yang tidak diinginkan -->
+            DEVICE_LIST='
             {"device":"s905x","kernel":"6.1.66-DBAI"}
             {"device":"s905x","kernel":"4.9.337"}
             {"device":"s905x2","kernel":"6.1.66-DBAI"}
@@ -216,8 +217,7 @@ jobs:
             {"device":"h616-x96-mate","kernel":"6.1.31-AW64-DBAI"}
             {"device":"h618-orangepi-zero2w","kernel":"6.1.104-AW64-DBAI"}
             {"device":"h618-orangepi-zero2w","kernel":"6.1.31-AW64-DBAI"}
-            EOF
-            )
+            '
             echo "$DEVICE_LIST" | while read -r device_config; do
               if [ -z "$device_config" ]; then continue; fi
               DEVICE=$(echo "$device_config" | jq -r .device)
