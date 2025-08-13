@@ -6,7 +6,7 @@
 #
 lolcat=/usr/games/lolcat
 
-ver="1.3"
+ver="1.4.7"
 tmp="./tmp"
 out="./out"
 minsize=1024
@@ -28,6 +28,9 @@ repos="https://github.com/armarchindo/ULO-repository"
 # Custom ROOTFS Repository on releases
 rootfs_repo="armarchindo/rootfs-openwrt"
 
+# Variabel global untuk menyimpan patch yang dipilih
+selected_patch=""
+
 start_cnt=$SECONDS
 
 die() {
@@ -37,15 +40,18 @@ die() {
 
 check_depedencies() {
     local pkgs_to_install=()
-    req=(lolcat pigz aria2 wget jq)
+    # Menambahkan unrar dan p7zip untuk fitur patch
+    req=(lolcat pigz aria2 wget jq unrar)
 
     # Tentukan manajer paket dan periksa dependensi yang hilang
     if command -v pacman &>/dev/null; then
         lolcat="/usr/bin/lolcat" # Perbarui path lolcat untuk Arch Linux
+        req+=(p7zip) # Arch Linux menggunakan p7zip
         for pkg in "${req[@]}"; do
             pacman -Qq "$pkg" &>/dev/null || pkgs_to_install+=("$pkg")
         done
     else
+        req+=(p7zip-full) # Debian/Ubuntu menggunakan p7zip-full
         for pkg in "${req[@]}"; do
             dpkg -s "$pkg" &>/dev/null || pkgs_to_install+=("$pkg")
         done
@@ -53,7 +59,6 @@ check_depedencies() {
 
     # Jika ada paket yang perlu diinstal, tampilkan pesan dan lakukan instalasi
     if [ ${#pkgs_to_install[@]} -gt 0 ]; then
-        # Gunakan echo standar untuk pesan fungsional
         echo -e "Preparing to install dependencies..."
         
         if command -v pacman &>/dev/null; then
@@ -62,14 +67,12 @@ check_depedencies() {
                 sudo pacman -S --noconfirm "$pkg" > /dev/null 2>&1
             done
         else
-            # Gunakan apt-get untuk kompatibilitas yang lebih luas
             for pkg in "${pkgs_to_install[@]}"; do
                 echo "  Installing $pkg..."
                 sudo apt-get -y install "$pkg" > /dev/null 2>&1
             done
         fi
         
-        # Gunakan echo standar untuk pesan fungsional
         echo -e "Done!!!"
     fi
 }
@@ -229,7 +232,7 @@ find_rootfs() {
 choose_device() {
     local i=0
     echo -e "Chipset: " | $lolcat -a -d 5
-    choose_option "${devices[*]}" ${#devices[*]}
+    choose_option ${#devices[@]} "" "${devices[@]}"
     local opt=$?
     device=${devices[opt]}
     devices=($device)
@@ -239,7 +242,7 @@ choose_device() {
 choose_rootfs() {
     local i=0
     echo -e "ROOTFS: " | $lolcat -a -d 5
-    choose_option "${rootfs[*]}" ${#rootfs[*]}
+    choose_option ${#rootfs[@]} "" "${rootfs[@]}"
     local opt=$?
     firmware=${rootfs[opt]}
     echo -e "${firmware}\n" | $lolcat -a -d 5
@@ -251,7 +254,7 @@ choose_kernel() {
 
     # Filter kernels based on the selected SOC
     for kernel in "${kernels[@]}"; do
-        local kinfo=$(ls core/kernel/${kernel} | grep dtb | cut -d- -f2)
+        local kinfo=$(ls "core/kernel/${kernel}" | grep dtb | cut -d- -f2)
         if [ "$kinfo" = "amlogic" ] && echo $amlogic | grep -iq $device; then
             filtered_kernels+=("$kernel")
         elif [ "$kinfo" = "allwinner" ] && echo $allwinner | grep -iq $device; then
@@ -263,44 +266,86 @@ choose_kernel() {
 
     # Show filtered kernels
     echo -e "Kernel:" | $lolcat -a -d 5
-    choose_option "${filtered_kernels[*]}" ${#filtered_kernels[*]} "kernel"
+    choose_option ${#filtered_kernels[@]} "kernel" "${filtered_kernels[@]}"
     local opt=$?
     kernel=${filtered_kernels[opt]}
     kernels=($kernel)
     kernel_checker "${kernel}" false
 }
 
+# Fungsi untuk mencari dan memilih patch
+choose_patch() {
+    local patch_path="./patch"
+    # Cek jika direktori patch ada
+    if [ ! -d "$patch_path" ]; then
+        echo "Direktori 'patch' tidak ditemukan. Melewati..."
+        return
+    fi
+
+    local patches=()
+    # PERBAIKAN: Ambil HANYA file (bukan direktori) dari folder patch
+    for p in $(find "$patch_path" -maxdepth 1 -type f); do
+        patches+=("$(basename "$p")")
+    done
+
+    # Cek jika tidak ada file patch yang ditemukan
+    if [ ${#patches[@]} -eq 0 ]; then
+        echo "Tidak ada patch arsip yang ditemukan di direktori 'patch'. Melewati..."
+        return
+    fi
+
+    # Tambahkan opsi "Lewati" di awal array
+    local options=("Lewati (Tidak ada patch)" "${patches[@]}")
+
+    echo -e "Pilih patch yang akan diterapkan:" | $lolcat -a -d 5
+    choose_option ${#options[@]} "" "${options[@]}"
+
+    local opt=$?
+    # Jika pengguna memilih selain "Lewati" (index 0)
+    if [ $opt -ne 0 ]; then
+        selected_patch=${options[$opt]}
+        echo -e "Patch dipilih: ${selected_patch}\n" | $lolcat -a -d 5
+    else
+        selected_patch=""
+        echo -e "Patch dilewati.\n"
+    fi
+}
+
+# Fungsi untuk menampilkan pilihan dan membaca input user
+# Argumen: 1. Jumlah Opsi 2. Tipe (opsional, "kernel" untuk format khusus) 3... Daftar Opsi
 choose_option() {
-    local options=$1
-    local len=$2
-    local optx=$3
-    local cnt=0
-    
-    if [ ! $optx ]; then
-        for x in ${options[*]}; do
-            echo -e "($((++i))) => $x "
+    local len=$1
+    local optx=$2
+    shift 2
+    local options=("$@")
+    local i=0
+
+    if [ "$optx" != "kernel" ]; then
+        for x in "${options[@]}"; do
+            echo -e "($((++i))) => $x"
         done
     else
-        for x in ${options[*]}; do
-            local kinfo=`ls core/kernel/${x} | grep dtb | cut -d- -f2`
-            if [ $kinfo = 'amlogic' ]; then
+        for x in "${options[@]}"; do
+            local kinfo=$(ls "core/kernel/${x}" | grep dtb | cut -d- -f2)
+            if [ "$kinfo" = 'amlogic' ]; then
                 kinfo='Amlogic  '
-            elif [ $kinfo = 'allwinner' ]; then
+            elif [ "$kinfo" = 'allwinner' ]; then
                 kinfo='AllWinner'
-            elif [ $kinfo = 'rockchip' ]; then
+            elif [ "$kinfo" = 'rockchip' ]; then
                 kinfo='Rockchip '
             else
                 kinfo='Undefined'
             fi
-            echo -e "($((++i))) => $kinfo $x "
+            echo -e "($((++i))) => $kinfo $x"
         done
     fi
 
     [ "$len" = 1 ] && return 0
 
+    local cnt=0
     while [ $cnt -lt 3 ]; do
-        echo "Select Number:"  | $lolcat -a -d 5 
-        read -p "" opt 
+        echo "Select Number:" | $lolcat -a -d 5
+        read -p "" opt
         if [ ! "$opt" ]; then
             opt=0
             break
@@ -317,6 +362,7 @@ choose_option() {
     [ $cnt = 3 ] && die "Bye NooB...!!!"
     return $opt
 }
+
 
 make_losetup() {
     local path=$1
@@ -343,6 +389,41 @@ make_losetup() {
         mkdir -p $mount/${loop_seq}
         mount ${loop} $mount/${loop_seq}
     }
+}
+
+# Fungsi untuk menerapkan patch yang dipilih
+apply_patch() {
+    # Cek jika ada patch yang dipilih
+    if [ -z "$selected_patch" ]; then
+        return
+    fi
+
+    local patch_file="./patch/$selected_patch"
+    local rootfs_target="$common_root" # $common_root dari fungsi unpack_openwrt
+
+    echo "Menerapkan patch: $selected_patch..." | $lolcat -a -d 5
+
+    # PERBAIKAN: Langsung ke logika arsip, karena patch folder sudah disaring
+    echo "Tipe patch: Arsip. Mengekstrak file..."
+    case "$patch_file" in
+        *.zip)
+            unzip -o "$patch_file" -d "$rootfs_target" >/dev/null 2>&1
+            ;;
+        *.rar)
+            unrar x -o+ "$patch_file" "$rootfs_target/" >/dev/null 2>&1
+            ;;
+        *.tar.gz|*.gz|*.tar.xz|*.xz)
+            tar xf "$patch_file" -C "$rootfs_target"
+            ;;
+        *.7z)
+            7z x "$patch_file" -o"$rootfs_target" -y >/dev/null 2>&1
+            ;;
+        *)
+            echo "Peringatan: Format arsip '$selected_patch' tidak dikenali. Dilewati."
+            return
+            ;;
+    esac
+    echo "Patch arsip selesai diterapkan." | $lolcat
 }
 
 unpack_openwrt() {
@@ -390,6 +471,9 @@ unpack_openwrt() {
         esac
     done
     
+    # Menerapkan patch setelah rootfs diekstrak
+    apply_patch
+
     rm -rf $common_root/lib/modules/*/
 }
 
@@ -599,9 +683,6 @@ set_rootsize() {
     done
 
     [ $cnt = 3 ] && die "Bye NooB..."
-
-    # Baris ini dihapus karena menyebabkan input tercetak dua kali
-    # echo -e "${rootsize}\n"
 }
 
 extract_kernel() {
@@ -865,6 +946,8 @@ done
 [ "$device" ] || choose_device
 [ "$firmware" ] || choose_rootfs
 [ "$kernel" ] || choose_kernel
+# Memanggil pilihan patch
+choose_patch
 [ "$rootsize" ] || set_rootsize
 
 unpack_openwrt
