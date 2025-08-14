@@ -10,7 +10,10 @@ on:
         type: choice
         options:
           - all
-          - ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz
+          - immortalwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz
+          - immortalwrt-23.05.4-vanila-armsr-armv8-generic-ext4-rootfs.img.gz
+          - openwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz
+          - openwrt-23.05.5-vanila-armsr-armv8-generic-ext4-rootfs.img.gz
           - OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
@@ -76,14 +79,21 @@ on:
           - 'Allwinner: h616-x96-mate (Kernel 6.1.31-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.104-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.31-AW64-DBAI)'
-      
+
       patch_choice:
-        description: 'Opsional: Nama file patch dari folder "patch" di repo (contoh: my-patch.zip)'
-        required: false
-        type: string
+        description: 'Pilih patch yang akan diterapkan dari repo, atau pilih "custom"'
+        required: true
+        default: 'Lewati (Tidak ada patch)'
+        type: choice
+        options:
+          - Lewati (Tidak ada patch)
+          - jamu_wifi-on_v23_dan_startup.tar.xz
+          - jamu_wifi-on_v23.tar.xz
+          - startup.tar.xz
+          - custom
 
       custom_patch_url:
-        description: 'Opsional: URL untuk download patch custom (akan menimpa patch_choice)'
+        description: 'URL download patch (HANYA ISI JIKA memilih "custom" di atas)'
         required: false
         type: string
 
@@ -111,7 +121,7 @@ jobs:
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
             echo "Akan build semua versi RootFS."
-            echo 'matrix={"include":[{"name":"ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-DBAI"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
+            echo 'matrix={"include":[{"name":"immortalwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-vanila"},{"name":"immortalwrt-23.05.4-vanila-armsr-armv8-generic-ext4-rootfs.img.gz","tag_suffix":"ImmortalWrt-23.05.4-vanila"},{"name":"openwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz","tag_suffix":"OpenWrt-21.02.7-vanila"},{"name":"openwrt-23.05.5-vanila-armsr-armv8-generic-ext4-rootfs.img.gz","tag_suffix":"OpenWrt-23.05.5-vanila"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
             CUSTOM_URL="${{ github.event.inputs.custom_rootfs_url }}"
             if [[ -z "$CUSTOM_URL" ]]; then
@@ -126,8 +136,14 @@ jobs:
           else
             echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
-            if [[ "${{ github.event.inputs.rootfs_choice }}" == "ImmortalWrt-21.02.7-DBAI-armvirt-rootfs.tar.gz" ]]; then
-              TAG_SUFFIX="ImmortalWrt-21.02.7-DBAI"
+            if [[ "${{ github.event.inputs.rootfs_choice }}" == "immortalwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="ImmortalWrt-21.02.7-vanila"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "immortalwrt-23.05.4-vanila-armsr-armv8-generic-ext4-rootfs.img.gz" ]]; then
+              TAG_SUFFIX="ImmortalWrt-23.05.4-vanila"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "openwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-21.02.7-vanila"
+            elif [[ "${{ github.event.inputs.rootfs_choice }}" == "openwrt-23.05.5-vanila-armsr-armv8-generic-ext4-rootfs.img.gz" ]]; then
+              TAG_SUFFIX="OpenWrt-23.05.5-vanila"
             elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="OpenWrt-23.05.4-A2OS"
             elif [[ "${{ github.event.inputs.rootfs_choice }}" == "OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz" ]]; then
@@ -190,22 +206,27 @@ jobs:
           # Create the patch directory
           sudo mkdir -p ./patch
 
-          # Check if a custom patch URL is provided and download it
-          if [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
-            echo "Downloading custom patch from URL: ${{ github.event.inputs.custom_patch_url }}"
-            # Use aria2c to download the patch into the patch directory
-            sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "./patch" "${{ github.event.inputs.custom_patch_url }}"
-            # The ulo script will automatically pick up any file in the ./patch directory.
-          # If no custom URL, check if a pre-existing patch file is specified
-          elif [ -n "${{ github.event.inputs.patch_choice }}" ]; then
-            # This assumes the file specified in patch_choice already exists in a "patch" folder in your repo.
-            # The checkout step will have already brought it. We just need to ensure the folder exists.
-            echo "Using pre-existing patch: ${{ github.event.inputs.patch_choice }}"
-            if [ ! -f "./patch/${{ github.event.inputs.patch_choice }}" ]; then
-               echo "Warning: Specified patch_choice file does not exist in the ./patch directory!"
+          # Logic for handling patch selection
+          if [[ "${{ github.event.inputs.patch_choice }}" == "custom" ]]; then
+            # If custom is selected, a URL must be provided
+            if [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
+              echo "Downloading custom patch from URL: ${{ github.event.inputs.custom_patch_url }}"
+              sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "./patch" "${{ github.event.inputs.custom_patch_url }}"
+            else
+              echo "Error: 'custom' patch was selected, but no URL was provided."
+              exit 1
             fi
+          elif [[ "${{ github.event.inputs.patch_choice }}" != "Lewati (Tidak ada patch)" ]]; then
+            # For default patches, assume they exist in the repo's patch folder
+            PATCH_FILE="${{ github.event.inputs.patch_choice }}"
+            echo "Using pre-existing patch: $PATCH_FILE"
+            if [ ! -f "./patch/$PATCH_FILE" ]; then
+               echo "Error: Specified patch file '$PATCH_FILE' does not exist in the ./patch directory! Please add it to the repository."
+               exit 1
+            fi
+            # The file is already there from checkout, nothing more to do.
           else
-            echo "No patch specified. Skipping patch download."
+            echo "No patch selected. Skipping."
           fi
           
           echo "Contents of patch directory:"
@@ -270,7 +291,18 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            # NOTE: The ulo script is INTERACTIVE for patch selection.
+            # This will FAIL if more than one patch file exists in the ./patch directory.
+            # The logic above ensures only one (or zero) patch files are present.
+            # We pipe "1" to select the first (and only) option which is the patch itself, skipping "Lewati".
+            # The ulo script presents ("Lewati", "patch-file"), so we select index 2.
+            # Let's pipe '2' to select the patch if it exists.
+            if [ "$(ls -A ./patch)" ]; then
+              echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            else
+              sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            fi
+            
             echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
             cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
@@ -289,8 +321,14 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-          sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
-          
+          if [ "$(ls -A ./patch)" ]; then
+            echo "Patch file found, auto-selecting option 2."
+            echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+          else
+            echo "No patch file found."
+            sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+          fi
+
           echo "Membuat artefak untuk $DEVICE..."
           mkdir -p ./artifact/"$DEVICE"
           cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
@@ -342,6 +380,15 @@ jobs:
           tahun=$(date +%Y)
           echo "release_tag=${{ matrix.tag_suffix }}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
+      - name: Set Patch Info for Release
+        id: patch_info
+        run: |
+          if [[ "${{ github.event.inputs.patch_choice }}" == "custom" ]]; then
+            echo "patch_text=Custom via URL (${{ github.event.inputs.custom_patch_url }})" >> $GITHUB_OUTPUT
+          else
+            echo "patch_text=${{ github.event.inputs.patch_choice }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
         with:
@@ -355,7 +402,7 @@ jobs:
             ### Informasi firmware OpenWrt
             - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
-            - Patch Diterapkan: ${{ github.event.inputs.custom_patch_url || github.event.inputs.patch_choice || 'Tidak ada' }}
+            - Patch Diterapkan: **${{ steps.patch_info.outputs.patch_text }}**
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
             - Facebook FP: https://www.facebook.com/armarchindo/
             - Blog: https://dbai-team.com
