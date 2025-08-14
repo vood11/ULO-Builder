@@ -28,6 +28,8 @@ custom_kernel_release_tag="kernel_dbai"
 custom_kernel_versions=( "5.19.16" "5.19.17" "5.15.76" "6.1.66" )
 
 DOWNLOAD_CUSTOM_KERNELS=false
+# REVISI: Menambahkan variabel kontrol untuk Custom RootFS
+DOWNLOAD_CUSTOM_ROOTFS=false
 
 selected_patch=""
 
@@ -130,39 +132,29 @@ check_depedencies() {
     fi
 }
 
+# REVISI: Fungsi ini diubah agar dikontrol oleh variabel DOWNLOAD_CUSTOM_ROOTFS
 custom_rootfs_files() {
-    echo -e "Do you want to add additional ROOTFS? (Y/N)" | $lolcat -a -d 5
-    local optz=$1
-    local opt=""
+    if [ "$DOWNLOAD_CUSTOM_ROOTFS" = false ]; then
+        echo -e "Custom ROOTFS download skipped by configuration."
+        return
+    fi
+
+    echo -e "Downloading custom ROOTFS Files..." | $lolcat -a -d 5
     local long_url="https://api.github.com/repos/$rootfs_repo/releases"
-    echo -e "$optz"
-    if [ "$optz" = "yes" ]; then
-        opt="Y"
-    elif [ "$optz" = "no" ]; then
-        opt="N"
-    else
-        while read -r -t 0; do read -r; done
-        read -p "" opt
+    local json_data=$(curl -s "$long_url")
+    local list_url=$(echo "$json_data" | jq -r '.[].assets[].browser_download_url')
+
+    if [ -z "$list_url" ]; then
+        echo "WARNING: No custom RootFS found or failed to fetch from GitHub API."
+        return
     fi
-    if [ "$opt" = "y" ] || [ "$opt" = "Y" ]; then
-        echo -e "Downloading ROOTFS Files..." | $lolcat -a -d 5
-        local cnt=0
-        local json_data=`curl -s $long_url`
-        local list_url=`echo $json_data | jq -r '.[].assets[].browser_download_url'`
-        local list_name=`echo $json_data | jq '.[].tag_name' | tr -d '"'`
-        local list_files=`echo $json_data | jq '.[].assets[].name' | tr -d '"'`
-        for names in ${list_name[*]}; do
-            ((cnt++))
-            echo -e "$cnt. $names"
-        done
-        for urls in ${list_url[*]}; do
-            echo "Downloading $(basename "$urls")..."
-            aria2c --console-log-level=warn -d rootfs "$urls"
-        done
-    else
-        echo -e "Custom ROOTFS skipped..."
-    fi
-    echo -e "Done...!!!" | $lolcat -a -d 5
+    
+    for url in $list_url; do
+        echo "Downloading $(basename "$url")..."
+        aria2c --console-log-level=warn -d rootfs "$url"
+    done
+    
+    echo -e "Custom ROOTFS download completed." | $lolcat -a -d 5
 }
 
 check_requirement_files() {
@@ -194,7 +186,7 @@ download_requirement_files() {
         rm -rf ./rootfs/*
         rm -rf $fwdriver_path/firmware
     fi
-    [ -d "${tmp_path}" ] || mkdir $tmp_path
+    [ -d "${tmp_path}" ] || mkdir -p $tmp_path
 
     if [ ! -f "${tmp_path}/data.zip" ]; then
         echo -e "Downloading KERNEL, ROOTFS, & Driver Firmware" | $lolcat -a -d 1
@@ -213,7 +205,9 @@ download_requirement_files() {
         download_and_extract_custom_kernels
     fi
 
+    # REVISI: Memanggil fungsi custom_rootfs_files yang sudah non-interaktif
     custom_rootfs_files
+    
     find_devices
     find_rootfs
     find_kernels
@@ -263,6 +257,7 @@ find_devices() {
     [ -d $path ] || return
     local len=0
     IFS=$'\n'
+    devices=()
     for x in $(ls $path); do
         [ -f $path/$x/boot-*.tar.gz ] && devices[len++]=$x
     done
@@ -290,6 +285,7 @@ find_rootfs() {
     [ -d $path ] || return
     local len=0
     IFS=$'\n'
+    rootfs=()
     for x in $(ls $path); do
         rootfs[len++]=$x
     done
@@ -888,9 +884,7 @@ echo -e "
 ----------------------------------------------------------------------
                             ULO BUILDER 
                                v${ver}
-								 
                               By DBAI
-	
 ----------------------------------------------------------------------
 ======================================================================
 " | $lolcat -a -d 5
