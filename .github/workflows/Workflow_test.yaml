@@ -3,6 +3,15 @@ name: ULO Autobuilder v2 (Flexible Options)
 on:
   workflow_dispatch:
     inputs:
+      download_custom_rootfs:
+        description: 'Download semua custom RootFS dari rilis? (Y/N)'
+        required: true
+        default: 'Tidak'
+        type: choice
+        options:
+          - 'Ya'
+          - 'Tidak'
+
       rootfs_choice:
         description: 'Pilih RootFS yang akan dibuild atau pilih "custom" untuk menggunakan URL'
         required: true
@@ -199,11 +208,13 @@ jobs:
 
       - name: Initial Setup & RootFS Download
         run: |
-          # PERBAIKAN: Menonaktifkan pertanyaan interaktif secara paksa di dalam skrip
-          # dengan mengubahnya menjadi komentar sebelum dieksekusi.
-          echo "Menonaktifkan prompt interaktif di dalam skrip ulo..."
-          sed -i 's/read -p "" opt/#read -p "" opt/' ulo
-          sudo ./ulo -y
+          if [[ "${{ github.event.inputs.download_custom_rootfs }}" == "Ya" ]]; then
+            echo "Menjawab 'Y' untuk download custom RootFS..."
+            echo "Y" | sudo ./ulo -y
+          else
+            echo "Menjawab 'N' untuk download custom RootFS..."
+            echo "N" | sudo ./ulo -y
+          fi
       
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
@@ -222,7 +233,7 @@ jobs:
             if [ -f "./patch/$BASE_PATCH_FILE" ]; then
               tar -xf "./patch/$BASE_PATCH_FILE" -C ./temp_base
             else
-              echo "::error::File patch dasar '$BASE_PATCH_FILE' tidak ditemukan!"
+              echo "::error::File patch dasar '$BASE_PATCH_FILE' tidak ditemukan di repo!"
               exit 1
             fi
           fi
@@ -236,7 +247,7 @@ jobs:
                 application/zip) unzip -o "$CUSTOM_ARCHIVE_PATH" -d ./temp_custom ;;
                 application/x-rar) unrar x -o+ "$CUSTOM_ARCHIVE_PATH" ./temp_custom/ ;;
                 application/x-7z-compressed) 7z x "$CUSTOM_ARCHIVE_PATH" -o./temp_custom ;;
-                *) echo "::error::Format arsip kustom tidak didukung!" ; exit 1 ;;
+                *) echo "::error::Format arsip kustom tidak didukung! Tipe file: $(file -b --mime-type "$CUSTOM_ARCHIVE_PATH")" ; exit 1 ;;
               esac
               rm "$CUSTOM_ARCHIVE_PATH"
             else
@@ -253,6 +264,8 @@ jobs:
           else
             echo "patch_applied=Tidak ada" >> $GITHUB_OUTPUT
           fi
+          echo "Proses patch selesai. Isi final folder patch:"
+          ls -l ./patch
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
