@@ -199,9 +199,11 @@ jobs:
 
       - name: Initial Setup & RootFS Download
         run: |
-          # Menambahkan 'echo "N" |' untuk menjawab pertanyaan interaktif pertama
-          # secara otomatis dan mencegah workflow berhenti.
-          echo "N" | sudo ./ulo -y
+          # PERBAIKAN: Menonaktifkan pertanyaan interaktif secara paksa di dalam skrip
+          # dengan mengubahnya menjadi komentar sebelum dieksekusi.
+          echo "Menonaktifkan prompt interaktif di dalam skrip ulo..."
+          sed -i 's/read -p "" opt/#read -p "" opt/' ulo
+          sudo ./ulo -y
       
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
@@ -310,7 +312,6 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            # PERBAIKAN: Menambahkan input "1" atau "2" untuk menangani menu patch
             if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
               echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             else
@@ -334,7 +335,6 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-          # PERBAIKAN: Menambahkan input "1" atau "2" untuk menangani menu patch
           if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
             echo "Patch file ditemukan, otomatis memilih opsi 2."
             echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
