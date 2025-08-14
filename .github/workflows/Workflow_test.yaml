@@ -80,25 +80,24 @@ on:
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.104-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.31-AW64-DBAI)'
 
-      patch_choice:
-        description: 'Pilih patch yang akan diterapkan dari repo, atau pilih "custom"'
+      base_patch_choice:
+        description: 'Pilih patch dasar dari repo (opsional)'
         required: true
-        default: 'Lewati (Tidak ada patch)'
+        default: 'Lewati'
         type: choice
         options:
-          - Lewati (Tidak ada patch)
+          - 'Lewati'
           - jamu_wifi-on_v23_dan_startup.tar.xz
           - jamu_wifi-on_v23.tar.xz
           - startup.tar.xz
           - jamu_wifi-on_v23_dan_startup_immortal.tar.xz
           - startup_immortal.tar.xz
-          - custom
 
       custom_patch_url:
-        description: 'URL download patch (HANYA ISI JIKA memilih "custom" di atas)'
+        description: 'URL untuk patch kustom tambahan (opsional)'
         required: false
         type: string
-
+        
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
@@ -203,35 +202,81 @@ jobs:
           sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
           echo "Download complete. File saved as rootfs/${{ matrix.name }}"
 
-      - name: Download and Place Patch
+      - name: Prepare and Combine Patches
+        id: patch_combiner
         run: |
-          # Create the patch directory
-          sudo mkdir -p ./patch
+          # 1. Create temporary working directories
+          echo "Membuat direktori sementara untuk proses patch..."
+          mkdir -p ./patch ./temp_base ./temp_custom ./temp_final
 
-          # Logic for handling patch selection
-          if [[ "${{ github.event.inputs.patch_choice }}" == "custom" ]]; then
-            # If custom is selected, a URL must be provided
-            if [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
-              echo "Downloading custom patch from URL: ${{ github.event.inputs.custom_patch_url }}"
-              sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "./patch" "${{ github.event.inputs.custom_patch_url }}"
+          # 2. Process the base patch if one is selected
+          if [[ "${{ github.event.inputs.base_patch_choice }}" != "Lewati" ]]; then
+            BASE_PATCH_FILE="${{ github.event.inputs.base_patch_choice }}"
+            echo "Mengekstrak patch dasar: $BASE_PATCH_FILE"
+            if [ -f "./patch/$BASE_PATCH_FILE" ]; then
+              # Extract the contents of the base patch to the temp_base folder
+              tar -xf "./patch/$BASE_PATCH_FILE" -C ./temp_base
             else
-              echo "Error: 'custom' patch was selected, but no URL was provided."
+              echo "::error::File patch dasar '$BASE_PATCH_FILE' tidak ditemukan di repo!"
               exit 1
             fi
-          elif [[ "${{ github.event.inputs.patch_choice }}" != "Lewati (Tidak ada patch)" ]]; then
-            # For default patches, assume they exist in the repo's patch folder
-            PATCH_FILE="${{ github.event.inputs.patch_choice }}"
-            echo "Using pre-existing patch: $PATCH_FILE"
-            if [ ! -f "./patch/$PATCH_FILE" ]; then
-               echo "Error: Specified patch file '$PATCH_FILE' does not exist in the ./patch directory! Please add it to the repository."
-               exit 1
+          fi
+
+          # 3. Process the custom patch if a URL is provided
+          if [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
+            echo "Mengunduh dan mengekstrak patch kustom dari URL..."
+            # Use aria2c to download the custom patch
+            sudo aria2c --out=custom_patch_archive --dir=./temp_custom --quiet=true -x 16 -s 16 -k 1M "${{ github.event.inputs.custom_patch_url }}"
+            
+            CUSTOM_ARCHIVE_PATH="./temp_custom/custom_patch_archive"
+            # Extract the custom archive
+            if [ -f "$CUSTOM_ARCHIVE_PATH" ]; then
+              # Use 'file' to detect the archive type and extract accordingly
+              case $(file -b --mime-type "$CUSTOM_ARCHIVE_PATH") in
+                application/x-xz)
+                  tar -xf "$CUSTOM_ARCHIVE_PATH" -C ./temp_custom
+                  ;;
+                application/gzip)
+                  tar -xzf "$CUSTOM_ARCHIVE_PATH" -C ./temp_custom
+                  ;;
+                application/zip)
+                  unzip -o "$CUSTOM_ARCHIVE_PATH" -d ./temp_custom
+                  ;;
+                application/x-rar)
+                  unrar x -o+ "$CUSTOM_ARCHIVE_PATH" ./temp_custom/
+                  ;;
+                *)
+                  echo "::error::Format arsip kustom tidak didukung!"
+                  exit 1
+                  ;;
+              esac
+              rm "$CUSTOM_ARCHIVE_PATH" # Delete the archive after extraction
+            else
+              echo "::error::Gagal mengunduh patch kustom!"
+              exit 1
             fi
-            # The file is already there from checkout, nothing more to do.
-          else
-            echo "No patch selected. Skipping."
           fi
           
-          echo "Contents of patch directory:"
+          # 4. Combine both patches
+          # Use rsync to merge. Files from the custom patch will overwrite files from the base patch if names conflict.
+          echo "Menggabungkan file patch..."
+          rsync -a ./temp_base/ ./temp_final/
+          rsync -a ./temp_custom/ ./temp_final/
+
+          # 5. Re-compress into a single combined patch file if any content exists
+          if [ "$(ls -A ./temp_final)" ]; then
+            echo "Membuat arsip patch gabungan: combined_patch.tar.gz"
+            # Clear the main patch folder to ensure only the combined patch exists
+            sudo rm -rf ./patch/*
+            # Create the new archive from the final folder
+            tar -czf ./patch/combined_patch.tar.gz -C ./temp_final .
+            echo "patch_applied=combined_patch.tar.gz" >> $GITHUB_OUTPUT
+          else
+            echo "Tidak ada patch yang dipilih atau diproses."
+            echo "patch_applied=Tidak ada" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Proses patch selesai. Isi final folder patch:"
           ls -l ./patch
 
 
@@ -293,13 +338,7 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
-            # NOTE: The ulo script is INTERACTIVE for patch selection.
-            # This will FAIL if more than one patch file exists in the ./patch directory.
-            # The logic above ensures only one (or zero) patch files are present.
-            # We pipe "1" to select the first (and only) option which is the patch itself, skipping "Lewati".
-            # The ulo script presents ("Lewati", "patch-file"), so we select index 2.
-            # Let's pipe '2' to select the patch if it exists.
-            if [ "$(ls -A ./patch)" ]; then
+            if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
               echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             else
               sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
@@ -323,7 +362,7 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
-          if [ "$(ls -A ./patch)" ]; then
+          if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
             echo "Patch file found, auto-selecting option 2."
             echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           else
@@ -385,11 +424,15 @@ jobs:
       - name: Set Patch Info for Release
         id: patch_info
         run: |
-          if [[ "${{ github.event.inputs.patch_choice }}" == "custom" ]]; then
-            echo "patch_text=Custom via URL (${{ github.event.inputs.custom_patch_url }})" >> $GITHUB_OUTPUT
-          else
-            echo "patch_text=${{ github.event.inputs.patch_choice }}" >> $GITHUB_OUTPUT
+          patch_text="Tidak ada"
+          if [[ "${{ github.event.inputs.base_patch_choice }}" != "Lewati" && -n "${{ github.event.inputs.custom_patch_url }}" ]]; then
+            patch_text="Gabungan dari '${{ github.event.inputs.base_patch_choice }}' dan patch kustom dari URL"
+          elif [[ "${{ github.event.inputs.base_patch_choice }}" != "Lewati" ]]; then
+            patch_text="${{ github.event.inputs.base_patch_choice }}"
+          elif [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
+            patch_text="Patch kustom dari URL"
           fi
+          echo "patch_text=$patch_text" >> $GITHUB_OUTPUT
 
       - name: Unggah aset rilis
         uses: svenstaro/upload-release-action@v2
