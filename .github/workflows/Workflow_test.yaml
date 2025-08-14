@@ -199,7 +199,7 @@ jobs:
 
       - name: Initial Setup & RootFS Download
         run: |
-          # PERBAIKAN: Menambahkan 'echo "N" |' untuk menjawab pertanyaan interaktif
+          # Menambahkan 'echo "N" |' untuk menjawab pertanyaan interaktif pertama
           # secara otomatis dan mencegah workflow berhenti.
           echo "N" | sudo ./ulo -y
       
@@ -214,82 +214,43 @@ jobs:
       - name: Prepare and Combine Patches
         id: patch_combiner
         run: |
-          # 1. Create temporary working directories
-          echo "Membuat direktori sementara untuk proses patch..."
           mkdir -p ./patch ./temp_base ./temp_custom ./temp_final
-
-          # 2. Process the base patch if one is selected
           if [[ "${{ github.event.inputs.base_patch_choice }}" != "Lewati" ]]; then
             BASE_PATCH_FILE="${{ github.event.inputs.base_patch_choice }}"
-            echo "Mengekstrak patch dasar: $BASE_PATCH_FILE"
             if [ -f "./patch/$BASE_PATCH_FILE" ]; then
-              # Extract the contents of the base patch to the temp_base folder
               tar -xf "./patch/$BASE_PATCH_FILE" -C ./temp_base
             else
-              echo "::error::File patch dasar '$BASE_PATCH_FILE' tidak ditemukan di repo!"
+              echo "::error::File patch dasar '$BASE_PATCH_FILE' tidak ditemukan!"
               exit 1
             fi
           fi
-
-          # 3. Process the custom patch if a URL is provided
           if [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
-            echo "Mengunduh dan mengekstrak patch kustom dari URL..."
-            # Use aria2c to download the custom patch
             sudo aria2c --out=custom_patch_archive --dir=./temp_custom --quiet=true -x 16 -s 16 -k 1M "${{ github.event.inputs.custom_patch_url }}"
-            
             CUSTOM_ARCHIVE_PATH="./temp_custom/custom_patch_archive"
-            # Extract the custom archive
             if [ -f "$CUSTOM_ARCHIVE_PATH" ]; then
-              # Use 'file' to detect the archive type and extract accordingly
               case $(file -b --mime-type "$CUSTOM_ARCHIVE_PATH") in
-                application/x-xz)
-                  tar -xf "$CUSTOM_ARCHIVE_PATH" -C ./temp_custom
-                  ;;
-                application/gzip)
-                  tar -xzf "$CUSTOM_ARCHIVE_PATH" -C ./temp_custom
-                  ;;
-                application/zip)
-                  unzip -o "$CUSTOM_ARCHIVE_PATH" -d ./temp_custom
-                  ;;
-                application/x-rar)
-                  unrar x -o+ "$CUSTOM_ARCHIVE_PATH" ./temp_custom/
-                  ;;
-                application/x-7z-compressed)
-                  7z x "$CUSTOM_ARCHIVE_PATH" -o./temp_custom
-                  ;;
-                *)
-                  echo "::error::Format arsip kustom tidak didukung! Tipe file: $(file -b --mime-type "$CUSTOM_ARCHIVE_PATH")"
-                  exit 1
-                  ;;
+                application/x-xz) tar -xf "$CUSTOM_ARCHIVE_PATH" -C ./temp_custom ;;
+                application/gzip) tar -xzf "$CUSTOM_ARCHIVE_PATH" -C ./temp_custom ;;
+                application/zip) unzip -o "$CUSTOM_ARCHIVE_PATH" -d ./temp_custom ;;
+                application/x-rar) unrar x -o+ "$CUSTOM_ARCHIVE_PATH" ./temp_custom/ ;;
+                application/x-7z-compressed) 7z x "$CUSTOM_ARCHIVE_PATH" -o./temp_custom ;;
+                *) echo "::error::Format arsip kustom tidak didukung!" ; exit 1 ;;
               esac
-              rm "$CUSTOM_ARCHIVE_PATH" # Delete the archive after extraction
+              rm "$CUSTOM_ARCHIVE_PATH"
             else
               echo "::error::Gagal mengunduh patch kustom!"
               exit 1
             fi
           fi
-          
-          # 4. Combine both patches
-          # Use rsync to merge. Files from the custom patch will overwrite files from the base patch if names conflict.
-          echo "Menggabungkan file patch..."
           rsync -a ./temp_base/ ./temp_final/
           rsync -a ./temp_custom/ ./temp_final/
-
-          # 5. Re-compress into a single combined patch file if any content exists
           if [ "$(ls -A ./temp_final)" ]; then
-            echo "Membuat arsip patch gabungan: combined_patch.tar.gz"
-            # Clear the main patch folder to ensure only the combined patch exists
             sudo rm -rf ./patch/*
-            # Create the new archive from the final folder
             tar -czf ./patch/combined_patch.tar.gz -C ./temp_final .
             echo "patch_applied=combined_patch.tar.gz" >> $GITHUB_OUTPUT
           else
-            echo "Tidak ada patch yang dipilih atau diproses."
             echo "patch_applied=Tidak ada" >> $GITHUB_OUTPUT
           fi
-
-          echo "Proses patch selesai. Isi final folder patch:"
-          ls -l ./patch
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
@@ -349,13 +310,13 @@ jobs:
             echo "=========================================================="
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
+            # PERBAIKAN: Menambahkan input "1" atau "2" untuk menangani menu patch
             if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
               echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             else
-              sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+              echo "1" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             fi
             
-            echo "Membuat artefak untuk $DEVICE..."
             mkdir -p ./artifact/"$DEVICE"
             cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
           done
@@ -373,15 +334,15 @@ jobs:
           echo "Membangun untuk RootFS: ${{ matrix.name }}"
           echo "=========================================================="
           
+          # PERBAIKAN: Menambahkan input "1" atau "2" untuk menangani menu patch
           if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
-            echo "Patch file found, auto-selecting option 2."
+            echo "Patch file ditemukan, otomatis memilih opsi 2."
             echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           else
-            echo "No patch file found."
-            sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            echo "Tidak ada patch, otomatis memilih opsi 1 (Lewati)."
+            echo "1" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           fi
 
-          echo "Membuat artefak untuk $DEVICE..."
           mkdir -p ./artifact/"$DEVICE"
           cp -rf ./out/"$DEVICE"/* ./artifact/"$DEVICE"/ || echo "Tidak ada file output untuk disalin dari $DEVICE"
 
