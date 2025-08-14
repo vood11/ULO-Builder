@@ -202,7 +202,7 @@ jobs:
           sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
           echo "Download complete. File saved as rootfs/${{ matrix.name }}"
 
-      - name: Prepare and Combine Patches
+- name: Prepare and Combine Patches
         id: patch_combiner
         run: |
           # 1. Create temporary working directories
@@ -245,8 +245,12 @@ jobs:
                 application/x-rar)
                   unrar x -o+ "$CUSTOM_ARCHIVE_PATH" ./temp_custom/
                   ;;
+                # FIX: Added case for .7z files
+                application/x-7z-compressed)
+                  7z x "$CUSTOM_ARCHIVE_PATH" -o./temp_custom
+                  ;;
                 *)
-                  echo "::error::Format arsip kustom tidak didukung!"
+                  echo "::error::Format arsip kustom tidak didukung! Tipe file: $(file -b --mime-type "$CUSTOM_ARCHIVE_PATH")"
                   exit 1
                   ;;
               esac
