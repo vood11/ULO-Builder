@@ -201,7 +201,7 @@ jobs:
         run: |
           # PERBAIKAN: Menambahkan 'echo "N" |' untuk menjawab pertanyaan interaktif
           # secara otomatis dan mencegah workflow berhenti.
-          echo "Y" | sudo ./ulo -y
+          echo "N" | sudo ./ulo -y
       
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
