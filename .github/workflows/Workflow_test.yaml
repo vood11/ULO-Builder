@@ -90,6 +90,8 @@ on:
           - jamu_wifi-on_v23_dan_startup.tar.xz
           - jamu_wifi-on_v23.tar.xz
           - startup.tar.xz
+          - jamu_wifi-on_v23_dan_startup_immortal.tar.xz
+          - startup_immortal.tar.xz
           - custom
 
       custom_patch_url:
