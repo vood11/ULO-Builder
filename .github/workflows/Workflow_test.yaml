@@ -106,7 +106,7 @@ on:
       fwinfo:
         description: 'Informasi pemilihan versi firmware'
         required: true
-        default: 's905x default adalah untuk STB B860H V1-V2/Dens TV V2Y jadi tinggal pakai setelah burning (HG680-P, Dens TV V2X dan type lain yang memakai SOC AMLOGIC s905x perlu ganti DTB berlaku untuk semua STB AMLOGIC), s905x2=HG680-FJ (B860H V5, Transvision Gen2, CYBORG 001/MNC Playbox perlu ganti DTB), s905x3=X96 Air Gigabit/WECHIP V9 (X96 MAX +, HK1 BOX, H96 MAX X3, dll jugsa sama perlu ganti DTB), s905x4=Akari AX810/Advan AT01 (wifi on gunakan kernel 5.4.x contoh 5.4.279 lengkap driver wifinya), device selain AMLOGIC hanya kompatibel sesuai title firmware'
+        default: 's905x default adalah untuk STB B860H V1-V2/Dens TV V2Y jadi tinggal pakai setelah burning (HG680-P, Dens TV V2X dan type lain yang memakai SOC AMLOGIC s905x perlu ganti DTB berlaku untuk semua STB AMLOGIC), s905x2=HG680-FJ (B860H V5, Transvision Gen2, CYBORG 001/MNC Playbox perlu ganti DTB), s905x3=X96 Air Gigabit/WECHIP V9 (X96 MAX +, HK1 BOX, H96 MAX X3, dll juga sama perlu ganti DTB), s905x4=Akari AX810/Advan AT01 (wifi on gunakan kernel 5.4.x contoh 5.4.279 lengkap driver wifinya), device selain AMLOGIC hanya kompatibel sesuai title firmware'
         type: string
 
 jobs:
@@ -402,8 +402,8 @@ jobs:
             ### Informasi firmware OpenWrt
             - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
-            - Patch Diterapkan: **${{ steps.patch_info.outputs.patch_text }}**
+            - Patch diterapkan: **${{ steps.patch_info.outputs.patch_text }}**
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
             - Facebook FP: https://www.facebook.com/armarchindo/
             - Blog: https://dbai-team.com
-            - Pertanyaan dan diskusi ke grup Discord DBAI: https://discord.gg/BXNzaJFTPP
+            - Pertanyaan dan diskusi hanya di grup Discord DBAI: https://discord.gg/BXNzaJFTPP
