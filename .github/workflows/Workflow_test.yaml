@@ -181,6 +181,13 @@ jobs:
         with:
           ref: main
 
+      - name: Aktifkan Download Kernel Kustom
+        run: |
+          echo "Mengubah DOWNLOAD_CUSTOM_KERNELS menjadi true di dalam skrip ulo..."
+          sed -i 's/DOWNLOAD_CUSTOM_KERNELS=false/DOWNLOAD_CUSTOM_KERNELS=true/' ulo
+          echo "Perubahan selesai. Verifikasi baris yang diubah:"
+          grep 'DOWNLOAD_CUSTOM_KERNELS' ulo
+
       - name: Cache repositori ULO
         uses: actions/cache@v4
         with:
