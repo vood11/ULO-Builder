@@ -76,11 +76,23 @@ on:
           - 'Allwinner: h616-x96-mate (Kernel 6.1.31-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.104-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.31-AW64-DBAI)'
+      
+      patch_choice:
+        description: 'Opsional: Nama file patch dari folder "patch" di repo (contoh: my-patch.zip)'
+        required: false
+        type: string
+
+      custom_patch_url:
+        description: 'Opsional: URL untuk download patch custom (akan menimpa patch_choice)'
+        required: false
+        type: string
+
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
         default: '1024'
         type: string
+        
       fwinfo:
         description: 'Informasi pemilihan versi firmware'
         required: true
@@ -107,7 +119,6 @@ jobs:
               exit 1
             fi
             FILENAME=$(basename "$CUSTOM_URL")
-            # <-- PERUBAHAN: Membersihkan nama file untuk tag rilis -->
             CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
             TAG_SUFFIX="Custom-$CLEANED_NAME"
             echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
@@ -144,7 +155,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo -E apt-get update
-          sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2
+          sudo -E apt-get -y install jq lolcat build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev rsync unzip zlib1g-dev file wget aria2 p7zip-full unrar
           sudo -E apt-get -y autoremove --purge
           sudo -E apt-get clean
 
@@ -164,7 +175,6 @@ jobs:
 
       - name: Initial Setup & RootFS Download
         run: |
-          # Menjalankan ulo dengan -y HANYA SEKALI untuk setup dan download
           sudo ./ulo -y
       
       - name: Download Custom RootFS (if selected)
@@ -174,6 +184,33 @@ jobs:
           sudo mkdir -p rootfs
           sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
           echo "Download complete. File saved as rootfs/${{ matrix.name }}"
+
+      - name: Download and Place Patch
+        run: |
+          # Create the patch directory
+          sudo mkdir -p ./patch
+
+          # Check if a custom patch URL is provided and download it
+          if [ -n "${{ github.event.inputs.custom_patch_url }}" ]; then
+            echo "Downloading custom patch from URL: ${{ github.event.inputs.custom_patch_url }}"
+            # Use aria2c to download the patch into the patch directory
+            sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "./patch" "${{ github.event.inputs.custom_patch_url }}"
+            # The ulo script will automatically pick up any file in the ./patch directory.
+          # If no custom URL, check if a pre-existing patch file is specified
+          elif [ -n "${{ github.event.inputs.patch_choice }}" ]; then
+            # This assumes the file specified in patch_choice already exists in a "patch" folder in your repo.
+            # The checkout step will have already brought it. We just need to ensure the folder exists.
+            echo "Using pre-existing patch: ${{ github.event.inputs.patch_choice }}"
+            if [ ! -f "./patch/${{ github.event.inputs.patch_choice }}" ]; then
+               echo "Warning: Specified patch_choice file does not exist in the ./patch directory!"
+            fi
+          else
+            echo "No patch specified. Skipping patch download."
+          fi
+          
+          echo "Contents of patch directory:"
+          ls -l ./patch
+
 
       - name: Membangun Semua Device (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
@@ -318,6 +355,7 @@ jobs:
             ### Informasi firmware OpenWrt
             - Firmware ini dibuild menggunakan Github Actions dengan RootFS: **${{ matrix.tag_suffix }}**
             - Ukuran ROOTFS: ${{ github.event.inputs.rootfs_size }}
+            - Patch Diterapkan: ${{ github.event.inputs.custom_patch_url || github.event.inputs.patch_choice || 'Tidak ada' }}
             - Informasi pemilihan versi firmware: ${{ github.event.inputs.fwinfo }}
             - Facebook FP: https://www.facebook.com/armarchindo/
             - Blog: https://dbai-team.com
