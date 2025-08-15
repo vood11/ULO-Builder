@@ -183,6 +183,20 @@ jobs:
           sudo -E apt-get -y autoremove --purge
           sudo -E apt-get clean
 
+      # PERBAIKAN: Tambahkan langkah untuk memaksimalkan ruang penyimpanan runner
+      - name: Maksimalkan Ruang Penyimpanan Build
+        run: |
+          echo "Memulai pembersihan untuk memaksimalkan ruang..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo apt-get purge -y --auto-remove azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* mysql* php*
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo "Pembersihan selesai."
+          df -h
+
       - name: Checkout Repositori
         uses: actions/checkout@v4
         with:
