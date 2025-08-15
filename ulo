@@ -34,7 +34,7 @@ rootfs_repo="armarchindo/rootfs-openwrt"
 # Atur ke 'true' untuk mengaktifkan, atau 'false' untuk menonaktifkan.
 # Ini kompatibel dengan alur kerja GitHub Actions.
 DOWNLOAD_CUSTOM_KERNEL=false
-DOWNLOAD_CUSTOM_ROOTFS=false
+DOWNLOAD_CUSTOM_ROOTFS=true
 # ============================================
 
 # === PENAMBAHAN: KONFIGURASI KERNEL KUSTOM ===
@@ -43,7 +43,7 @@ custom_kernel_repo="armarchindo/kernel"
 # 2. Atur nama tag rilis tempat semua kernel berada
 custom_kernel_release_tag="kernel_dbai"
 # 3. Tuliskan versi kernel yang ingin diunduh, pisahkan dengan spasi
-custom_kernel_versions=( "5.19.16" "5.19.17" "5.15.76" "6.1.66-DBAI" )
+custom_kernel_versions=( "6.1.66-DBAI" "5.4.279" "5.10.160-rk35v-dbai" "6.1.31-AW64-DBAI" "6.1.104-AW64-DBAI" "6.6.6-AW64-DBAI" "6.1.123" )
 # ============================================
 
 # Variabel global untuk menyimpan patch yang dipilih
