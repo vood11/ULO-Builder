@@ -30,6 +30,13 @@ ulo_repo="armarchindo/ULO-repository"
 rootfs_repo="armarchindo/rootfs-openwrt"
 # ==========================================================
 
+# === PENAMBAHAN: KONTROL FITUR UNDUHAN KUSTOM ===
+# Atur ke 'true' untuk mengaktifkan, atau 'false' untuk menonaktifkan.
+# Ini kompatibel dengan alur kerja GitHub Actions.
+DOWNLOAD_CUSTOM_KERNEL=false
+DOWNLOAD_CUSTOM_ROOTFS=false
+# ============================================
+
 # === PENAMBAHAN: KONFIGURASI KERNEL KUSTOM ===
 # 1. Atur repositori GitHub untuk kernel (format: pengguna/repo)
 custom_kernel_repo="armarchindo/kernel"
@@ -51,6 +58,12 @@ die() {
 
 # === PENAMBAHAN: FUNGSI UNDUH DAN EKSTRAK KERNEL (DIPERBAIKI) ===
 download_and_extract_custom_kernels() {
+    # Periksa apakah fitur diaktifkan
+    if [ "$DOWNLOAD_CUSTOM_KERNEL" = false ]; then
+        echo "Pengunduhan kernel kustom dinonaktifkan. Melewati..."
+        return
+    fi
+
     # Periksa jika daftar versi kosong
     if [ ${#custom_kernel_versions[@]} -eq 0 ]; then
         echo "Tidak ada versi kernel yang ditentukan di 'custom_kernel_versions', proses dilewati."
@@ -157,7 +170,13 @@ check_depedencies() {
 }
 
 custom_rootfs_files() {
-    echo -e "Do you want to add additional ROOTFS? (Y/N)"
+    # Periksa apakah fitur diaktifkan
+    if [ "$DOWNLOAD_CUSTOM_ROOTFS" = false ]; then
+        echo "Pengunduhan ROOTFS kustom dinonaktifkan. Melewati..."
+        return
+    fi
+
+    echo -e "Do you want to add additional ROOTFS? (Y/N)" | $lolcat -a -d 5
     local optz=$1
     local opt=""
     local long_url="https://api.github.com/repos/$rootfs_repo/releases"
@@ -170,7 +189,7 @@ custom_rootfs_files() {
         read -p "" opt
     fi
     if [ "$opt" = "y" ] || [ "$opt" = "Y" ]; then
-        echo -e "Downloading ROOTFS Files..."
+        echo -e "Downloading ROOTFS Files..." | $lolcat -a -d 5
         local cnt=0
         local json_data=`curl -s $long_url`
         local list_url=`echo $json_data | jq -r '.[].assets[].browser_download_url'`
