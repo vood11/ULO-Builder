@@ -33,7 +33,7 @@ rootfs_repo="armarchindo/rootfs-openwrt"
 # === PENAMBAHAN: KONTROL FITUR UNDUHAN KUSTOM ===
 # Atur ke 'true' untuk mengaktifkan, atau 'false' untuk menonaktifkan.
 # Ini kompatibel dengan alur kerja GitHub Actions.
-DOWNLOAD_CUSTOM_KERNEL=false
+DOWNLOAD_CUSTOM_KERNEL=true
 DOWNLOAD_CUSTOM_ROOTFS=true
 # ============================================
 
