@@ -181,17 +181,6 @@ jobs:
         with:
           ref: main
 
-                                                 
-              
-                                                       
-                                                                                  
-          
-                                                       
-                                                                                  
-          
-                                        
-                                    
-
       - name: Cache repositori ULO
         uses: actions/cache@v4
         with:
@@ -200,10 +189,6 @@ jobs:
             rootfs/
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
-
-      - name: Initial Setup & RootFS Download
-        run: |
-          sudo ./ulo -y
       
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
