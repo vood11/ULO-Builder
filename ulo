@@ -340,37 +340,51 @@ choose_kernel() {
     kernel_checker "${kernel}" false
 }
 
+# --- PERBAIKAN DIMULAI DI SINI ---
 choose_patch() {
     local patch_path="./patch"
     if [ ! -d "$patch_path" ]; then
-        echo "Patch directory not found. Skipping..."
+        echo "Direktori patch tidak ditemukan. Melewati..."
         return
     fi
 
     local patches=()
-    for p in $(find "$patch_path" -maxdepth 1 -type f); do
+    # Mengisi array 'patches' dengan nama file dari direktori patch
+    while IFS= read -r -d $'\0'; do
         patches+=("$(basename "$p")")
-    done
+    done < <(find "$patch_path" -maxdepth 1 -type f -print0)
 
+    # Logika Otomatis untuk Lingkungan Non-Interaktif (GitHub Actions)
+    if [ ${#patches[@]} -eq 1 ]; then
+        # Jika hanya ada SATU file patch, langsung pilih file itu.
+        selected_patch=${patches[0]}
+        echo "Satu patch ditemukan, memilih secara otomatis: ${selected_patch}" | $lolcat -a -d 5
+        return # Keluar dari fungsi, tidak perlu tanya pengguna
+    fi
+    
     if [ ${#patches[@]} -eq 0 ]; then
-        echo "No patch archives found in 'patch' directory. Skipping..."
+        echo "Tidak ada arsip patch di direktori 'patch'. Melewati..."
         return
     fi
 
-    local options=("Skip (No patch)" "${patches[@]}")
+    # Logika Interaktif (Jika dijalankan manual dan ada >1 patch)
+    local options=("Lewati (Tanpa patch)" "${patches[@]}")
 
-    echo -e "Select patch to apply:" | $lolcat -a -d 5
+    echo -e "Pilih patch yang akan diterapkan:" | $lolcat -a -d 5
     choose_option ${#options[@]} "" "${options[@]}"
 
     local opt=$?
     if [ $opt -ne 0 ]; then
+        # Opsi 0 adalah "Lewati", jadi kita pilih selain itu
         selected_patch=${options[$opt]}
-        echo -e "Selected patch: ${selected_patch}\n" | $lolcat -a -d 5
+        echo -e "Patch yang dipilih: ${selected_patch}\n" | $lolcat -a -d 5
     else
         selected_patch=""
-        echo -e "Patch skipped.\n"
+        echo -e "Patch dilewati.\n"
     fi
 }
+# --- PERBAIKAN SELESAI DI SINI ---
+
 
 choose_option() {
     local len=$1
