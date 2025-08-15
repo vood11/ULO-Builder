@@ -43,7 +43,7 @@ custom_kernel_repo="armarchindo/kernel"
 # 2. Atur nama tag rilis tempat semua kernel berada
 custom_kernel_release_tag="kernel_dbai"
 # 3. Tuliskan versi kernel yang ingin diunduh, pisahkan dengan spasi
-custom_kernel_versions=( "5.19.16" "5.19.17" "5.15.76" "6.1.66" )
+custom_kernel_versions=( "5.19.16" "5.19.17" "5.15.76" "6.1.66-DBAI" )
 # ============================================
 
 # Variabel global untuk menyimpan patch yang dipilih
