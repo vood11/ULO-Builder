@@ -15,9 +15,10 @@ tmp="./tmp"
 out="./out"
 minsize=1024
 
-amlogic=`ls -l ./core/loader/amlogic | grep s9 | awk '{ print $9 }' | cut -d. -f1`
-allwinner=`ls -l ./core/loader/allwinner | grep u-boot-sunxi-with-spl | awk '{ print $9 }' | cut -c 23- | cut -d. -f1`
-rockchip=`ls -l ./core/loader/rockchip | grep idbloader | awk '{ print $9 }' | cut -c 11- | cut -d. -f1`
+# --- VARIABEL INI AKAN DIINISIALISASI NANTI SETELAH FILE DIUNDUH ---
+amlogic=""
+allwinner=""
+rockchip=""
 
 device_path="./device"
 kernel_path="./core/kernel"
@@ -884,7 +885,6 @@ Options:
     -u, --update    : Update Kernel, ROOTFS, and Firmware files from ULO-Repository
                       (Will overwrite your old Kernel, ROOTFS, and Firmware files!!!)
     
-    -y  --yes       : Custom ROOTFS Download
     -k              : Set the kernel       (-k 6.1.66-DBAI)
     -m              : Set the device       (-m s905x2)
     -r              : Set the rootfs files (-r immortalwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz)
@@ -909,12 +909,14 @@ echo -e "
 
 check_requirement_files
 
+# --- PERBAIKAN: Inisialisasi variabel dipindahkan ke sini ---
+amlogic=`ls -l ./core/loader/amlogic | grep s9 | awk '{ print $9 }' | cut -d. -f1`
+allwinner=`ls -l ./core/loader/allwinner | grep u-boot-sunxi-with-spl | awk '{ print $9 }' | cut -c 23- | cut -d. -f1`
+rockchip=`ls -l ./core/loader/rockchip | grep idbloader | awk '{ print $9 }' | cut -c 11- | cut -d. -f1`
+
+
 while [ "$1" ]; do
     case "$1" in
-        -y|--yes)
-            custom_rootfs_files "yes"
-            exit
-        ;;
         -h|--help)
             usage
             exit
