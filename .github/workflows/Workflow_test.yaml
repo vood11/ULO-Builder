@@ -3,6 +3,13 @@ name: ULO Autobuilder v2 (Flexible Options)
 on:
   workflow_dispatch:
     inputs:
+      # PENAMBAHAN: Opsi untuk mengaktifkan/menonaktifkan unduhan kustom
+      enable_custom_downloads:
+        description: 'Aktifkan unduhan KERNEL & ROOTFS kustom? (Centang untuk Ya)'
+        required: true
+        type: boolean
+        default: false
+
       rootfs_choice:
         description: 'Pilih RootFS yang akan dibuild atau pilih "custom" untuk menggunakan URL'
         required: true
@@ -181,7 +188,9 @@ jobs:
         with:
           ref: main
 
-      - name: Aktifkan Download Kustom (Patching)
+      # PERBAIKAN: Menambahkan kondisi 'if' dan mengubah nama langkah
+      - name: Aktifkan Download Kustom (jika dipilih)
+        if: github.event.inputs.enable_custom_downloads == true
         run: |
           echo "Mengaktifkan download kernel kustom..."
           sed -i 's/DOWNLOAD_CUSTOM_KERNEL=false/DOWNLOAD_CUSTOM_KERNEL=true/' ulo
@@ -201,9 +210,9 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      - name: Initial Setup & RootFS Download
-        run: |
-          sudo ./ulo -y
+											 
+			  
+					   
       
       - name: Download Custom RootFS (if selected)
         if: github.event.inputs.rootfs_choice == 'custom'
