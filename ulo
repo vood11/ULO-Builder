@@ -24,18 +24,11 @@ fwdriver_path="./core/root/lib"
 
 # === PERUBAHAN: Menyamakan format penulisan variabel repo ===
 # ULO Dependensi Repository (Kernel, Rootfs dasar, Firmware)
-ulo_repo="vood11/ULO-repository"
+ulo_repo="armarchindo/ULO-repository"
 
 # Custom ROOTFS Repository on releases
 rootfs_repo="armarchindo/rootfs-openwrt"
 # ==========================================================
-
-# === PENAMBAHAN: KONTROL FITUR UNDUHAN KUSTOM ===
-# Atur ke 'true' untuk mengaktifkan, atau 'false' untuk menonaktifkan.
-# Ini kompatibel dengan alur kerja GitHub Actions.
-DOWNLOAD_CUSTOM_KERNEL=false
-DOWNLOAD_CUSTOM_ROOTFS=true
-# ============================================
 
 # === PENAMBAHAN: KONFIGURASI KERNEL KUSTOM ===
 # 1. Atur repositori GitHub untuk kernel (format: pengguna/repo)
@@ -43,7 +36,7 @@ custom_kernel_repo="armarchindo/kernel"
 # 2. Atur nama tag rilis tempat semua kernel berada
 custom_kernel_release_tag="kernel_dbai"
 # 3. Tuliskan versi kernel yang ingin diunduh, pisahkan dengan spasi
-custom_kernel_versions=( "6.1.66-DBAI" "5.4.279" "5.10.160-rk35v-dbai" "6.1.31-AW64-DBAI" "6.1.104-AW64-DBAI" "6.6.6-AW64-DBAI" "6.1.123" )
+custom_kernel_versions=( "5.19.16" "5.19.17" "5.15.76" )
 # ============================================
 
 # Variabel global untuk menyimpan patch yang dipilih
@@ -58,12 +51,6 @@ die() {
 
 # === PENAMBAHAN: FUNGSI UNDUH DAN EKSTRAK KERNEL (DIPERBAIKI) ===
 download_and_extract_custom_kernels() {
-    # Periksa apakah fitur diaktifkan
-    if [ "$DOWNLOAD_CUSTOM_KERNEL" = false ]; then
-        echo "Pengunduhan kernel kustom dinonaktifkan. Melewati..."
-        return
-    fi
-
     # Periksa jika daftar versi kosong
     if [ ${#custom_kernel_versions[@]} -eq 0 ]; then
         echo "Tidak ada versi kernel yang ditentukan di 'custom_kernel_versions', proses dilewati."
@@ -170,13 +157,7 @@ check_depedencies() {
 }
 
 custom_rootfs_files() {
-    # Periksa apakah fitur diaktifkan
-    if [ "$DOWNLOAD_CUSTOM_ROOTFS" = false ]; then
-        echo "Pengunduhan ROOTFS kustom dinonaktifkan. Melewati..."
-        return
-    fi
-
-    echo -e "Do you want to add additional ROOTFS? (Y/N)" | $lolcat -a -d 5
+    echo -e "Do you want to add additional ROOTFS? (Y/N)"
     local optz=$1
     local opt=""
     local long_url="https://api.github.com/repos/$rootfs_repo/releases"
@@ -189,7 +170,7 @@ custom_rootfs_files() {
         read -p "" opt
     fi
     if [ "$opt" = "y" ] || [ "$opt" = "Y" ]; then
-        echo -e "Downloading ROOTFS Files..." | $lolcat -a -d 5
+        echo -e "Downloading ROOTFS Files..."
         local cnt=0
         local json_data=`curl -s $long_url`
         local list_url=`echo $json_data | jq -r '.[].assets[].browser_download_url'`
@@ -1109,3 +1090,4 @@ fi
 chmod -R 777 $out
 rm $rootfs_path/uboot.log
 rm $rootfs_path/rootfs.log
+
