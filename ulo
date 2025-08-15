@@ -4,6 +4,10 @@
 #
 # Licensed under the MIT.
 #
+
+# --- PERBAIKAN: Tambahkan 'set -e' untuk memastikan skrip berhenti jika ada error ---
+set -e
+
 lolcat=/usr/games/lolcat
 
 ver="1.4"
