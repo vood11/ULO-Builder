@@ -24,7 +24,7 @@ fwdriver_path="./core/root/lib"
 
 # === PERUBAHAN: Menyamakan format penulisan variabel repo ===
 # ULO Dependensi Repository (Kernel, Rootfs dasar, Firmware)
-ulo_repo="armarchindo/ULO-repository"
+ulo_repo="vood11/ULO-repository"
 
 # Custom ROOTFS Repository on releases
 rootfs_repo="armarchindo/rootfs-openwrt"
