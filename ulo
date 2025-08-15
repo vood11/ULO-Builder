@@ -34,7 +34,7 @@ rootfs_repo="armarchindo/rootfs-openwrt"
 # Atur ke 'true' untuk mengaktifkan, atau 'false' untuk menonaktifkan.
 # Ini kompatibel dengan alur kerja GitHub Actions.
 DOWNLOAD_CUSTOM_KERNEL=false
-DOWNLOAD_CUSTOM_ROOTFS=false
+DOWNLOAD_CUSTOM_ROOTFS=true
 # ============================================
 
 # === PENAMBAHAN: KONFIGURASI KERNEL KUSTOM ===
