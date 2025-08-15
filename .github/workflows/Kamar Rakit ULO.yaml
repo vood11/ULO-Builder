@@ -360,9 +360,11 @@ jobs:
             echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
             if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
+              # Jika ada patch, pilih opsi 2 (patch gabungan)
               echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             else
-              sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+              # PERBAIKAN: Jika tidak ada patch, pilih opsi 1 (Lewati) untuk menghindari script berhenti
+              echo "1" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             fi
             
             echo "Membuat artefak untuk $DEVICE..."
@@ -384,11 +386,13 @@ jobs:
           echo "=========================================================="
           
           if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
-            echo "Patch file found, auto-selecting option 2."
+            echo "Patch file ditemukan, otomatis memilih opsi 2."
+            # Jika ada patch, pilih opsi 2 (patch gabungan)
             echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           else
-            echo "No patch file found."
-            sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
+            echo "Tidak ada patch yang diterapkan, otomatis memilih opsi 1 (Lewati)."
+            # PERBAIKAN: Jika tidak ada patch, pilih opsi 1 (Lewati) untuk menghindari script berhenti
+            echo "1" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           fi
 
           echo "Membuat artefak untuk $DEVICE..."
