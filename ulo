@@ -86,7 +86,7 @@ download_and_extract_custom_kernels() {
             echo "-> Extracting ${archive_name} to ${extract_dir}/"
             mkdir -p "$extract_dir"
             
-            if tar -xzf "${temp_download_dir}/${archive_name}" -C "$extract_dir/" --strip-components=1; then
+            if tar -xzf "${temp_download_dir}/${archive_name}" -C "$extract_dir/" --strip_components=1; then
                 echo "   Extraction successful."
             else
                 echo "   ERROR: Failed to extract ${archive_name}."
@@ -162,24 +162,33 @@ custom_rootfs_files() {
     echo -e "Custom ROOTFS download completed." | $lolcat -a -d 5
 }
 
+# --- FUNGSI INI DIPERBAIKI ---
 check_requirement_files() {
-    statx=0
+    # Periksa apakah pengunduhan diperlukan tanpa menghentikan skrip secara prematur
+    local needs_download=false
+    if [ ! -d "$device_path" ] || [ -z "$(ls -A "$device_path" 2>/dev/null)" ]; then
+        needs_download=true
+    elif [ ! -d "$rootfs_path" ] || [ -z "$(ls -A "$rootfs_path" 2>/dev/null)" ]; then
+        needs_download=true
+    elif [ ! -d "$kernel_path" ] || [ -z "$(ls -A "$kernel_path" 2>/dev/null)" ]; then
+        needs_download=true
+    elif [ ! -d "${fwdriver_path}/firmware" ]; then
+        needs_download=true
+    fi
+
+    if [ "$needs_download" = true ]; then
+        echo "Satu atau lebih file/direktori yang dibutuhkan tidak ada atau kosong. Memulai pengunduhan..."
+        download_requirement_files false
+    fi
+
+    # Sekarang file dijamin ada, cari isinya.
     find_devices
     find_rootfs
     find_kernels
-    [ ${#devices[*]} = 0 ] && die "No ${device_path:2} file or directory!"
-    [ ${#rootfs[*]} = 0 ] && statx=1
-    [ ${#kernels[*]} = 0 ] &&  statx=2
-    [ -d "${fwdriver_path}/firmware" ] || statx=3
-    if [ $statx = 1 ]; then
-        echo -e "ROOTFS files not available!"
-        download_requirement_files false
-    elif [ $statx = 2 ]; then
-        echo -e "ULO Builder dependencies not found!"
-        download_requirement_files false
-    elif [ $statx = 3 ]; then
-        echo -e "ULO dependencies not found!"
-        download_requirement_files false
+
+    # Pemeriksaan terakhir setelah upaya pengunduhan
+    if [ ${#devices[*]} -eq 0 ]; then
+        die "Gagal mengunduh atau menemukan file device. Proses berhenti."
     fi
 }
 
@@ -1058,4 +1067,4 @@ fi
 
 chmod -R 777 $out
 rm $rootfs_path/uboot.log
-rm $rootfs_path/rootfs.log
+rm $rootfs_path/rootfs.
