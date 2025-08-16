@@ -8,7 +8,6 @@ on:
         required: true
         type: boolean
         default: false
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       rootfs_choice:
         description: 'Pilih RootFS yang akan dibuild atau pilih "custom" untuk menggunakan URL'
@@ -26,13 +25,11 @@ on:
           - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz
           - custom
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       custom_rootfs_url:
         description: 'URL unduhan RootFS (HANYA ISI JIKA memilih "custom" di atas)'
         required: false
         type: string
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       device_choice:
         description: 'Pilih Perangkat & Kernel (pilih "all" untuk build semua)'
@@ -85,7 +82,6 @@ on:
           - 'Allwinner: h616-x96-mate (Kernel 6.1.31-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.104-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.31-AW64-DBAI)'
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       base_patch_choice:
         description: 'Pilih patch dasar dari repositori (opsional)'
@@ -99,27 +95,23 @@ on:
           - startup.tar.xz
           - jamu_wifi-on_v23_dan_startup_immortal.tar.xz
           - startup_immortal.tar.xz
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       custom_patch_url:
         description: 'URL untuk patch kustom tambahan (opsional)'
         required: false
         type: string
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
         default: '1024'
         type: string
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       fwinfo:
         description: 'Informasi pemilihan versi firmware'
         required: true
         default: 's905x default adalah untuk STB B860H V1-V2/Dens TV V2Y jadi tinggal pakai setelah burning (HG680-P, Dens TV V2X dan tipe lain yang memakai SOC AMLOGIC s905x perlu ganti DTB berlaku untuk semua STB AMLOGIC), s905x2=HG680-FJ (B860H V5, Transvision Gen2, CYBORG 001/MNC Playbox perlu ganti DTB), s905x3=X96 Air Gigabit/WECHIP V9 (X96 MAX +, HK1 BOX, H96 MAX X3, dll juga sama perlu ganti DTB), s905x4=Akari AX810/Advan AT01 (wifi on gunakan kernel 5.4.x contoh 5.4.279 lengkap driver wifinya), perangkat selain AMLOGIC hanya kompatibel sesuai judul firmware'
         type: string
-        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
 jobs:
   determine_rootfs:
@@ -225,7 +217,7 @@ jobs:
           sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
           echo "Unduhan selesai. File disimpan sebagai rootfs/${{ matrix.name }}"
 
-      - name: Siapkan dan Gabungkan Patch
+      - name: Menyiapkan dan Menggabungkan Patch
         id: patch_combiner
         run: |
           mkdir -p ./patch ./temp_base ./temp_custom ./temp_final
@@ -268,7 +260,7 @@ jobs:
       - name: Membangun Semua Perangkat (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
         run: |
-          mkdir -p ./artifact_final  # Revisi: Dipertahankan (logika pembuatan direktori penting)
+          mkdir -p ./artifact_final
           DEVICE_LIST=$(cat <<EOF
           {"device":"s905x","kernel":"6.1.66-DBAI"}
           {"device":"s905x","kernel":"4.9.337"}
@@ -348,7 +340,7 @@ jobs:
       - name: Membangun Perangkat Spesifik (jika bukan 'all')
         if: github.event.inputs.device_choice != 'all'
         run: |
-          mkdir -p ./artifact_final  # Revisi: Dipertahankan (logika pembuatan direktori penting)
+          mkdir -p ./artifact_final
           CHOICE="${{ github.event.inputs.device_choice }}"
           DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
           KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
