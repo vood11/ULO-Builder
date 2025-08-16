@@ -1029,7 +1029,7 @@ echo -e "Informasi Build:
     Rootfs      = $(cat ${rootfs_path}/rootfs.log | cut -d '-' -f1-3)
     Ukuran      = $Total_size M
     U-boot      = ${uboot}" | $lolcat -a -d 5
-echo "    File keluaran = out/$device/$(cat ${rootfs_path}/rootfs.log | cut -d '-' -f1-3)-$device-k$kernel.img.gz" | $lolcat -a -d 5
+echo "    Lokasi Firmware = out/$device/$(cat ${rootfs_path}/rootfs.log | cut -d '-' -f1-3)-$device-k$kernel.img.gz" | $lolcat -a -d 5
 cleaning 0
 
 pigz -qf $out/$device/$(cat ${rootfs_path}/rootfs.log | cut -d '-' -f1-3)-$device-k$kernel.img || gzip $out/$device/$(cat ${rootfs_path}/rootfs.log | cut -d '-' -f1-3)-$device-k$kernel.img
