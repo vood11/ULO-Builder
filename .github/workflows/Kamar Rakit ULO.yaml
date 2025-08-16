@@ -1,14 +1,14 @@
-name: The ULO Build Chamber
+name: Kamar Build ULO
 
 on:
   workflow_dispatch:
     inputs:
-      # PENAMBAHAN: Opsi untuk mengaktifkan/menonaktifkan unduhan kustom
       enable_custom_downloads:
         description: 'Aktifkan unduhan KERNEL & ROOTFS kustom? (Centang untuk Ya)'
         required: true
         type: boolean
         default: false
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       rootfs_choice:
         description: 'Pilih RootFS yang akan dibuild atau pilih "custom" untuk menggunakan URL'
@@ -26,20 +26,21 @@ on:
           - OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz
           - OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz
           - custom
-      
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
+
       custom_rootfs_url:
-        description: 'URL download RootFS (HANYA ISI JIKA memilih "custom" di atas)'
+        description: 'URL unduhan RootFS (HANYA ISI JIKA memilih "custom" di atas)'
         required: false
         type: string
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       device_choice:
-        description: 'Pilih Device & Kernel (pilih "all" untuk build semua)'
+        description: 'Pilih Perangkat & Kernel (pilih "all" untuk build semua)'
         required: true
         default: 'all'
         type: choice
         options:
           - all
-          # --- Amlogic ---
           - 'Amlogic: s905x (Kernel 6.1.66-DBAI)'
           - 'Amlogic: s905x (Kernel 4.9.337)'
           - 'Amlogic: s905x2 (Kernel 6.1.66-DBAI)'
@@ -48,12 +49,10 @@ on:
           - 'Amlogic: s905x3 (Kernel 6.1.66-DBAI)'
           - 'Amlogic: s905x4 (Kernel 6.1.66-DBAI)'
           - 'Amlogic: s905x4 (Kernel 5.4.279)'
-          # --- Rockchip ---
           - 'Rockchip: rk3588s-orangepi-5 (Kernel 5.10.160-rk35v-dbai)'
           - 'Rockchip: rk3566-orangepi-3b (Kernel 5.10.160-rk35v-dbai)'
           - 'Rockchip: rk3588-orangepi-5-max (Kernel 5.10.160-rk35v-dbai)'
           - 'Rockchip: rk3588-orangepi-5-plus (Kernel 5.10.160-rk35v-dbai)'
-          # --- Allwinner ---
           - 'Allwinner: h618-orangepi-zero3 (Kernel 6.1.104-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero3 (Kernel 6.1.31-AW64-DBAI)'
           - 'Allwinner: a64-bananapi-m64 (Kernel 6.1.104-AW64-DBAI)'
@@ -86,9 +85,10 @@ on:
           - 'Allwinner: h616-x96-mate (Kernel 6.1.31-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.104-AW64-DBAI)'
           - 'Allwinner: h618-orangepi-zero2w (Kernel 6.1.31-AW64-DBAI)'
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       base_patch_choice:
-        description: 'Pilih patch dasar dari repo (opsional)'
+        description: 'Pilih patch dasar dari repositori (opsional)'
         required: true
         default: 'Lewati'
         type: choice
@@ -99,36 +99,40 @@ on:
           - startup.tar.xz
           - jamu_wifi-on_v23_dan_startup_immortal.tar.xz
           - startup_immortal.tar.xz
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
       custom_patch_url:
         description: 'URL untuk patch kustom tambahan (opsional)'
         required: false
         type: string
-        
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
+
       rootfs_size:
         description: 'Ukuran ROOTFS, minimal 640 (756, 1024, 2048, dll)'
         required: true
         default: '1024'
         type: string
-        
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
+
       fwinfo:
         description: 'Informasi pemilihan versi firmware'
         required: true
-        default: 's905x default adalah untuk STB B860H V1-V2/Dens TV V2Y jadi tinggal pakai setelah burning (HG680-P, Dens TV V2X dan type lain yang memakai SOC AMLOGIC s905x perlu ganti DTB berlaku untuk semua STB AMLOGIC), s905x2=HG680-FJ (B860H V5, Transvision Gen2, CYBORG 001/MNC Playbox perlu ganti DTB), s905x3=X96 Air Gigabit/WECHIP V9 (X96 MAX +, HK1 BOX, H96 MAX X3, dll juga sama perlu ganti DTB), s905x4=Akari AX810/Advan AT01 (wifi on gunakan kernel 5.4.x contoh 5.4.279 lengkap driver wifinya), device selain AMLOGIC hanya kompatibel sesuai title firmware'
+        default: 's905x default adalah untuk STB B860H V1-V2/Dens TV V2Y jadi tinggal pakai setelah burning (HG680-P, Dens TV V2X dan tipe lain yang memakai SOC AMLOGIC s905x perlu ganti DTB berlaku untuk semua STB AMLOGIC), s905x2=HG680-FJ (B860H V5, Transvision Gen2, CYBORG 001/MNC Playbox perlu ganti DTB), s905x3=X96 Air Gigabit/WECHIP V9 (X96 MAX +, HK1 BOX, H96 MAX X3, dll juga sama perlu ganti DTB), s905x4=Akari AX810/Advan AT01 (wifi on gunakan kernel 5.4.x contoh 5.4.279 lengkap driver wifinya), perangkat selain AMLOGIC hanya kompatibel sesuai judul firmware'
         type: string
+        # Revisi: Dipertahankan (deskripsi input penting untuk pengguna)
 
 jobs:
   determine_rootfs:
-    name: 1. Determine RootFS
+    name: 1. Tentukan RootFS
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Determine RootFS build matrix
+      - name: Tentukan matriks build RootFS
         id: set-matrix
         run: |
           if [[ "${{ github.event.inputs.rootfs_choice }}" == "all" ]]; then
-            echo "Akan build semua versi RootFS."
+            echo "Akan membuild semua versi RootFS."
             echo 'matrix={"include":[{"name":"immortalwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz","tag_suffix":"ImmortalWrt-21.02.7-vanila"},{"name":"immortalwrt-23.05.4-vanila-armsr-armv8-generic-ext4-rootfs.img.gz","tag_suffix":"ImmortalWrt-23.05.4-vanila"},{"name":"openwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz","tag_suffix":"OpenWrt-21.02.7-vanila"},{"name":"openwrt-23.05.5-vanila-armsr-armv8-generic-ext4-rootfs.img.gz","tag_suffix":"OpenWrt-23.05.5-vanila"},{"name":"OpenWrt-23.05.4-A2OS-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-A2OS"},{"name":"OpenWrt-23.05.4-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.4-ALKHANET"},{"name":"OpenWrt-23.05.5-ALKHANET-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-ALKHANET"},{"name":"OpenWrt-23.05.5-InsomWRT-armsr-armv8-generic-rootfs.tar.gz","tag_suffix":"OpenWrt-23.05.5-InsomWRT"}]}' >> $GITHUB_OUTPUT
           elif [[ "${{ github.event.inputs.rootfs_choice }}" == "custom" ]]; then
             CUSTOM_URL="${{ github.event.inputs.custom_rootfs_url }}"
@@ -139,10 +143,10 @@ jobs:
             FILENAME=$(basename "$CUSTOM_URL")
             CLEANED_NAME=$(echo "$FILENAME" | sed -e 's/-rootfs//g' -e 's|_rootfs||g' -e 's/\.tar\.gz$//' -e 's/\.img\.gz$//' -e 's/\.zip$//')
             TAG_SUFFIX="Custom-$CLEANED_NAME"
-            echo "Akan build RootFS kustom dari URL: $CUSTOM_URL"
+            echo "Akan membuild RootFS kustom dari URL: $CUSTOM_URL"
             echo "matrix={\"include\":[{\"name\":\"$FILENAME\",\"tag_suffix\":\"$TAG_SUFFIX\"}]}" >> $GITHUB_OUTPUT
           else
-            echo "Akan build RootFS: ${{ github.event.inputs.rootfs_choice }}"
+            echo "Akan membuild RootFS: ${{ github.event.inputs.rootfs_choice }}"
             TAG_SUFFIX=""
             if [[ "${{ github.event.inputs.rootfs_choice }}" == "immortalwrt-21.02.7-vanila-armvirt-64-default-rootfs.tar.gz" ]]; then
               TAG_SUFFIX="ImmortalWrt-21.02.7-vanila"
@@ -188,13 +192,13 @@ jobs:
         with:
           ref: main
 
-      - name: Aktifkan Download Kustom (jika dipilih)
+      - name: Aktifkan Unduhan Kustom (jika dipilih)
         if: github.event.inputs.enable_custom_downloads == 'true'
         run: |
-          echo "Mengaktifkan download kernel kustom..."
+          echo "Mengaktifkan unduhan kernel kustom..."
           sudo sed -i 's/DOWNLOAD_CUSTOM_KERNEL=false/DOWNLOAD_CUSTOM_KERNEL=true/' ulo
           
-          echo "Mengaktifkan download RootFS kustom..."
+          echo "Mengaktifkan unduhan RootFS kustom..."
           sudo sed -i 's/DOWNLOAD_CUSTOM_ROOTFS=false/DOWNLOAD_CUSTOM_ROOTFS=true/' ulo
           
           echo "Verifikasi konfigurasi:"
@@ -209,19 +213,19 @@ jobs:
             device/
           key: ${{ runner.os }}-ulo-repo-${{ hashFiles('ulo') }}
 
-      - name: Initial Setup & RootFS Download
+      - name: Persiapan Awal & Unduhan RootFS
         run: |
           sudo ./ulo -y                                             
-      
-      - name: Download Custom RootFS (if selected)
+
+      - name: Unduh RootFS Kustom (jika dipilih)
         if: github.event.inputs.rootfs_choice == 'custom'
         run: |
-          echo "Downloading custom RootFS from ${{ github.event.inputs.custom_rootfs_url }} using aria2c..."
+          echo "Mengunduh RootFS kustom dari ${{ github.event.inputs.custom_rootfs_url }} menggunakan aria2c..."
           sudo mkdir -p rootfs
           sudo aria2c --quiet=true -x 16 -s 16 -k 1M -d "rootfs" -o "${{ matrix.name }}" "${{ github.event.inputs.custom_rootfs_url }}"
-          echo "Download complete. File saved as rootfs/${{ matrix.name }}"
+          echo "Unduhan selesai. File disimpan sebagai rootfs/${{ matrix.name }}"
 
-      - name: Prepare and Combine Patches
+      - name: Siapkan dan Gabungkan Patch
         id: patch_combiner
         run: |
           mkdir -p ./patch ./temp_base ./temp_custom ./temp_final
@@ -261,12 +265,10 @@ jobs:
             echo "patch_applied=Tidak ada" >> $GITHUB_OUTPUT
           fi
 
-      - name: Membangun Semua Device (jika 'all' dipilih)
+      - name: Membangun Semua Perangkat (jika 'all' dipilih)
         if: github.event.inputs.device_choice == 'all'
         run: |
-          # PERBAIKAN: Buat direktori final untuk semua artefak
-          mkdir -p ./artifact_final
-
+          mkdir -p ./artifact_final  # Revisi: Dipertahankan (logika pembuatan direktori penting)
           DEVICE_LIST=$(cat <<EOF
           {"device":"s905x","kernel":"6.1.66-DBAI"}
           {"device":"s905x","kernel":"4.9.337"}
@@ -320,7 +322,7 @@ jobs:
             DEVICE=$(echo "$device_config" | jq -r .device)
             KERNEL=$(echo "$device_config" | jq -r .kernel)
             echo "=========================================================="
-            echo "Membangun: Device=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
+            echo "Membangun: Perangkat=$DEVICE, Kernel=$KERNEL, RootFS=${{ matrix.name }}"
             echo "=========================================================="
             if [[ "${{ steps.patch_combiner.outputs.patch_applied }}" != "Tidak ada" ]]; then
               echo "2" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
@@ -328,7 +330,6 @@ jobs:
               echo "1" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
             fi
             
-            # PERBAIKAN: Pindahkan hasil build dan bersihkan direktori kerja
             echo "Memproses artefak untuk $DEVICE..."
             OUTPUT_FILE=$(find ./out/$DEVICE -type f -name "*.img.gz")
             if [ -n "$OUTPUT_FILE" ]; then
@@ -344,11 +345,10 @@ jobs:
             df -h
           done
 
-      - name: Membangun Device Spesifik (jika bukan 'all')
+      - name: Membangun Perangkat Spesifik (jika bukan 'all')
         if: github.event.inputs.device_choice != 'all'
         run: |
-          # PERBAIKAN: Buat direktori final untuk artefak
-          mkdir -p ./artifact_final
+          mkdir -p ./artifact_final  # Revisi: Dipertahankan (logika pembuatan direktori penting)
           CHOICE="${{ github.event.inputs.device_choice }}"
           DEVICE=$(echo "$CHOICE" | sed -n 's/.*: \(.*\) (.*/\1/p')
           KERNEL=$(echo "$CHOICE" | sed -n 's/.*(Kernel \(.*\))/\1/p')
@@ -363,19 +363,17 @@ jobs:
             echo "1" | sudo ./ulo -m "$DEVICE" -r "${{ matrix.name }}" -k "$KERNEL" -s "${{ github.event.inputs.rootfs_size }}"
           fi
 
-          # PERBAIKAN: Pindahkan hasil build ke direktori final
           echo "Memindahkan artefak..."
           find ./out/$DEVICE -type f -name "*.img.gz" -exec mv {} ./artifact_final/ \;
 
       - name: Mengirim Paket
         uses: actions/upload-artifact@v4
         with:
-          # PERBAIKAN: Unggah dari direktori final yang sudah dibersihkan
           name: openwrt_package_${{ matrix.tag_suffix }}
           path: ./artifact_final/
 
   upload_release:
-    name: 3. Create Release
+    name: 3. Buat Rilis
     needs: [determine_rootfs, build_ipk]
     if: success()
     permissions:
@@ -415,7 +413,7 @@ jobs:
           tahun=$(date +%Y)
           echo "release_tag=${{ matrix.tag_suffix }}_ULO-RELEASE_${bulan}-${tanggal}-${tahun}" >> $GITHUB_OUTPUT
 
-      - name: Set Patch Info for Release
+      - name: Atur Informasi Patch untuk Rilis
         id: patch_info
         run: |
           patch_text="Tidak ada"
