@@ -22,7 +22,7 @@ kernel_path="./core/kernel"
 rootfs_path="./rootfs"
 fwdriver_path="./core/root/lib"
 
-# Repositori dependensi ULO (Kernel, Rootfs Dasar, Driver Firmware)
+# Repositori dependensi ULO-Builder (Kernel, Rootfs Dasar, Driver Firmware)
 ulo_repo="armarchindo/ULO-repository"
 
 # Repositori ROOTFS kustom pada rilis
@@ -200,7 +200,7 @@ check_requirement_files() {
         echo -e "File dependensi ULO-Builder tidak ditemukan!"
         download_requirement_files false
     elif [ $statx = 3 ]; then
-        echo -e "Dependensi ULO tidak ditemukan!"
+        echo -e "Dependensi ULO-Builder tidak ditemukan!"
         download_requirement_files false
     fi
 }
